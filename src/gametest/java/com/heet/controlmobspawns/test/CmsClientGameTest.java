@@ -2,13 +2,17 @@ package com.heet.controlmobspawns.test;
 
 import com.heet.controlmobspawns.ControlMobSpawns;
 import com.heet.controlmobspawns.client.ClientSession;
+import com.heet.controlmobspawns.client.ControlMobSpawnsClient;
 import com.heet.controlmobspawns.client.ModMenuIntegration;
+import com.heet.controlmobspawns.client.NbtSuggestions;
 import com.heet.controlmobspawns.client.screen.BiomeSpawnsScreen;
-import com.heet.controlmobspawns.client.screen.CurrentMobsScreen;
 import com.heet.controlmobspawns.client.screen.HomeScreen;
 import com.heet.controlmobspawns.client.screen.MobDetailScreen;
 import com.heet.controlmobspawns.client.screen.MobListScreen;
+import com.heet.controlmobspawns.client.screen.NbtBansScreen;
+import com.heet.controlmobspawns.client.screen.NbtPathPickerScreen;
 import com.heet.controlmobspawns.client.screen.NbtProportionsScreen;
+import com.heet.controlmobspawns.client.screen.RowList;
 import com.heet.controlmobspawns.client.screen.SpawnRuleScreen;
 import com.heet.controlmobspawns.config.CmsConfig;
 import com.heet.controlmobspawns.config.ConfigManager;
@@ -17,7 +21,9 @@ import com.heet.controlmobspawns.network.CmsPayloads;
 import com.heet.controlmobspawns.spawn.ExistingMobCleaner;
 import com.heet.controlmobspawns.spawn.ItemPickupHolder;
 import com.heet.controlmobspawns.spawn.SpawnControl;
+import dev.isxander.yacl3.gui.YACLScreen;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -26,6 +32,8 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestDedicatedServerCon
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.core.BlockPos;
@@ -47,6 +55,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.levelgen.Heightmap;
+import org.lwjgl.glfw.GLFW;
 
 public class CmsClientGameTest implements FabricClientGameTest {
 	@Override
@@ -86,7 +95,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		baby.value = "1b";
 		baby.percent = 20;
 		zombie.nbtProportions.add(baby);
-		context.setScreen(() -> new NbtProportionsScreen(title, session, zombie));
+		context.setScreen(() -> new NbtProportionsScreen(title, session, "minecraft:zombie", zombie));
 		context.takeScreenshot("cms-04-nbt-proportions");
 		context.setScreen(() -> new SpawnRuleScreen(title, session, zombie));
 		context.takeScreenshot("cms-05-spawn-rule");
@@ -310,17 +319,76 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		check(context.computeOnClient(minecraft -> ((HomeScreen) minecraft.gui.screen()).canEdit()), "singleplayer owner can edit");
 		context.takeScreenshot("cms-07-home-singleplayer");
 		context.clickScreenButton("controlmobspawns.gui.home.world");
+		context.waitFor(minecraft -> minecraft.gui.screen() instanceof YACLScreen);
 		context.waitTicks(5);
 		context.takeScreenshot("cms-08-yacl-world");
+		int tabs = context.computeOnClient(minecraft -> ((YACLScreen) minecraft.gui.screen()).config.categories().size());
+		check(tabs == 4, "the world screen has a Current mobs tab");
+		context.runOnClient(minecraft -> ((YACLScreen) minecraft.gui.screen()).tabNavigationBar.selectTab(tabs - 1, false));
+		context.waitTicks(5);
+		context.takeScreenshot("cms-09-current-mobs-tab");
+
 		CmsPayloads.Sync[] sync = new CmsPayloads.Sync[1];
-		context.runOnClient(minecraft -> com.heet.controlmobspawns.client.ControlMobSpawnsClient.setSyncListener(received -> sync[0] = received));
+		context.runOnClient(minecraft -> ControlMobSpawnsClient.setSyncListener(received -> sync[0] = received));
 		context.runOnClient(minecraft -> ClientPlayNetworking.send(new CmsPayloads.RequestSync()));
 		context.waitFor(minecraft -> sync[0] != null);
 		ClientSession session = ClientSession.remote(ClientSession.Scope.WORLD, sync[0]);
-		context.setScreen(() -> new CurrentMobsScreen(null, session));
-		context.waitTicks(10);
-		context.takeScreenshot("cms-09-current-mobs");
+		nbtSuggestions(context, session);
 		context.setScreen(() -> null);
+	}
+
+	private static void nbtSuggestions(ClientGameTestContext context, ClientSession session) {
+		String zombie = "minecraft:zombie";
+		context.runOnClient(minecraft -> NbtSuggestions.request(zombie));
+		context.waitFor(minecraft -> NbtSuggestions.get(zombie) != null);
+		List<String> babyValues = context.computeOnClient(minecraft -> NbtSuggestions.values(zombie, "IsBaby"));
+		int pathCount = context.computeOnClient(minecraft -> NbtSuggestions.paths(zombie).size());
+		ControlMobSpawns.LOGGER.info("[CMS-TEST] {} NBT paths for zombies, IsBaby values {}", pathCount, babyValues);
+		check(babyValues.contains("0b") && babyValues.contains("1b"), "IsBaby offered with 0b and 1b");
+
+		CmsConfig.MobSettings settings = session.config.getOrCreateMob(zombie);
+		CmsConfig.NbtBan ban = new CmsConfig.NbtBan();
+		settings.nbtBans.add(ban);
+		context.setScreen(() -> new NbtBansScreen(null, session, zombie, settings));
+		context.runOnClient(minecraft -> focusEditBox(minecraft.gui.screen(), 0));
+		context.getInput().typeChars("IsBa");
+		context.waitTicks(2);
+		context.takeScreenshot("cms-10-nbt-path-autocomplete");
+		context.getInput().pressKey(GLFW.GLFW_KEY_TAB);
+		context.waitTicks(2);
+		check(ban.path.equals("IsBaby"), "Tab completes the NBT path, got " + ban.path);
+
+		context.runOnClient(minecraft -> focusEditBox(minecraft.gui.screen(), 1));
+		context.waitTicks(2);
+		context.takeScreenshot("cms-11-nbt-value-suggestions");
+		context.getInput().pressKey(GLFW.GLFW_KEY_DOWN);
+		context.getInput().pressKey(GLFW.GLFW_KEY_ENTER);
+		context.waitTicks(2);
+		check(babyValues.contains(ban.value), "Enter picks a suggested value, got " + ban.value);
+
+		context.setScreen(() -> new NbtPathPickerScreen(null, session, zombie, (path, value) -> { }));
+		context.waitTicks(2);
+		context.takeScreenshot("cms-12-nbt-path-list");
+	}
+
+	/** Focuses the n-th text box of the rows, the way a click would. */
+	private static void focusEditBox(Screen screen, int index) {
+		int found = 0;
+		for (GuiEventListener child : screen.children()) {
+			if (child instanceof RowList list) {
+				for (RowList.Row row : list.children()) {
+					for (GuiEventListener widget : row.children()) {
+						if (widget instanceof EditBox box && found++ == index) {
+							screen.setFocused(list);
+							list.setFocused(row);
+							row.setFocused(box);
+							return;
+						}
+					}
+				}
+			}
+		}
+		throw new AssertionError("[CMS-TEST] no text box " + index);
 	}
 
 	private static void dedicatedServer(ClientGameTestContext context) {
@@ -330,7 +398,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				context.setScreen(() -> ModMenuIntegration.openRoot(null));
 				context.waitFor(minecraft -> minecraft.gui.screen() instanceof HomeScreen home && home.canEdit() != null);
 				check(!context.computeOnClient(minecraft -> ((HomeScreen) minecraft.gui.screen()).canEdit()), "non-op cannot edit on a dedicated server");
-				context.takeScreenshot("cms-10-home-dedicated-not-op");
+				context.takeScreenshot("cms-13-home-dedicated-not-op");
 
 				CmsConfig denied = new CmsConfig();
 				denied.getOrCreateMob("minecraft:cow").banned = true;
@@ -345,7 +413,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				context.setScreen(() -> ModMenuIntegration.openRoot(null));
 				context.waitFor(minecraft -> minecraft.gui.screen() instanceof HomeScreen home && home.canEdit() != null);
 				check(context.computeOnClient(minecraft -> ((HomeScreen) minecraft.gui.screen()).canEdit()), "op can edit on a dedicated server");
-				context.takeScreenshot("cms-11-home-dedicated-op");
+				context.takeScreenshot("cms-14-home-dedicated-op");
 				context.runOnClient(minecraft -> ClientPlayNetworking.send(new CmsPayloads.Save(true, deniedJson)));
 				server.waitFor(minecraftServer -> ConfigManager.active().mob(EntityTypes.COW) != null);
 				context.setScreen(() -> null);

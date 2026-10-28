@@ -66,10 +66,10 @@ public class MobDetailScreen extends CmsScreen {
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.nbt")));
 		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.nbt_bans.title"), null,
 			Component.translatable("controlmobspawns.gui.nbt_bans.hint"),
-			editButton(settings.nbtBans.size(), () -> new NbtBansScreen(this, session, settings))));
+			editButton(settings.nbtBans.size(), () -> new NbtBansScreen(this, session, id, settings))));
 		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.nbt_proportions.title"), null,
 			Component.translatable("controlmobspawns.gui.nbt_proportions.hint"),
-			editButton(settings.nbtProportions.size(), () -> new NbtProportionsScreen(this, session, settings))));
+			editButton(settings.nbtProportions.size(), () -> new NbtProportionsScreen(this, session, id, settings))));
 
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.rules")));
 		Component ruleState = Component.translatable(settings.spawnRule != null && settings.spawnRule.enabled

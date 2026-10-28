@@ -211,7 +211,7 @@ public final class SpawnControl {
 		}
 	}
 
-	private static CompoundTag save(Entity entity) {
+	public static CompoundTag save(Entity entity) {
 		try (ProblemReporter.ScopedCollector reporter = new ProblemReporter.ScopedCollector(entity.problemPath(), ControlMobSpawns.LOGGER)) {
 			TagValueOutput output = TagValueOutput.createWithContext(reporter, entity.registryAccess());
 			entity.saveWithoutId(output);

@@ -1,25 +1,50 @@
 package com.heet.controlmobspawns.client.screen;
 
 import com.heet.controlmobspawns.client.ClientSession;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Supplier;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.StringWidget;
 import net.minecraft.client.gui.layouts.HeaderAndFooterLayout;
 import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 
-/** Base screen: a title, an optional search box, a list of rows and a footer. */
+/**
+ * Base screen: a title, an optional search box, a list of rows and a footer. Text boxes can be
+ * given suggestions, shown in a drop-down under the focused box.
+ */
 public abstract class CmsScreen extends Screen {
+	private static final int MAX_VISIBLE_SUGGESTIONS = 8;
+	private static final int SUGGESTION_HEIGHT = 12;
+
 	protected final Screen parent;
 	protected final ClientSession session;
 	protected final HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this);
 	protected RowList list;
 	protected @Nullable EditBox searchBox;
 	private String search = "";
+
+	private final Map<EditBox, Supplier<List<String>>> completions = new IdentityHashMap<>();
+	private @Nullable EditBox suggestionBox;
+	private List<String> suggestions = List.of();
+	private int selectedSuggestion;
+	private int firstVisibleSuggestion;
+	private @Nullable String dismissedFor;
+	private int popupX;
+	private int popupY;
+	private int popupWidth;
 
 	protected CmsScreen(Screen parent, ClientSession session, Component title) {
 		super(title);
@@ -44,6 +69,12 @@ public abstract class CmsScreen extends Screen {
 
 	protected String search() {
 		return search;
+	}
+
+	/** Offers {@code candidates} in a drop-down while {@code box} is focused. */
+	protected EditBox autocomplete(EditBox box, Supplier<List<String>> candidates) {
+		completions.put(box, candidates);
+		return box;
 	}
 
 	@Override
@@ -98,6 +129,7 @@ public abstract class CmsScreen extends Screen {
 	/** Rebuilds the rows, keeping the scroll position. */
 	public void refresh() {
 		if (list != null) {
+			completions.clear();
 			list.setRows(buildRows());
 		}
 	}
@@ -106,5 +138,149 @@ public abstract class CmsScreen extends Screen {
 	public void onClose() {
 		onDone();
 		minecraft.gui.setScreen(parent);
+	}
+
+	@Override
+	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
+		super.extractRenderState(graphics, mouseX, mouseY, a);
+		updateSuggestions();
+		if (suggestionBox == null) {
+			return;
+		}
+		int visible = Math.min(MAX_VISIBLE_SUGGESTIONS, suggestions.size());
+		popupWidth = suggestionBox.getWidth();
+		for (int i = 0; i < visible; i++) {
+			popupWidth = Math.max(popupWidth, font.width(suggestions.get(firstVisibleSuggestion + i)) + 6);
+		}
+		popupX = Math.min(suggestionBox.getX(), width - popupWidth - 2);
+		int height = visible * SUGGESTION_HEIGHT;
+		popupY = suggestionBox.getY() + suggestionBox.getHeight() + 1;
+		if (popupY + height > this.height) {
+			popupY = suggestionBox.getY() - height - 1;
+		}
+		graphics.nextStratum();
+		graphics.fill(popupX, popupY, popupX + popupWidth, popupY + height, 0xF0101010);
+		graphics.outline(popupX - 1, popupY - 1, popupWidth + 2, height + 2, 0xFF606060);
+		for (int i = 0; i < visible; i++) {
+			int index = firstVisibleSuggestion + i;
+			int y = popupY + i * SUGGESTION_HEIGHT;
+			boolean selected = index == selectedSuggestion;
+			if (selected) {
+				graphics.fill(popupX, y, popupX + popupWidth, y + SUGGESTION_HEIGHT, 0xFF303060);
+			}
+			graphics.text(font, suggestions.get(index), popupX + 3, y + 2, selected ? 0xFFFFFF55 : 0xFFE0E0E0);
+		}
+		if (suggestions.size() > visible) {
+			String more = "+" + (suggestions.size() - visible - firstVisibleSuggestion);
+			graphics.text(font, more, popupX + popupWidth - font.width(more) - 3, popupY + height - SUGGESTION_HEIGHT + 2, 0xFF808080);
+		}
+	}
+
+	/** Finds the focused box with suggestions and filters them by its text. */
+	private void updateSuggestions() {
+		EditBox focused = null;
+		for (EditBox box : completions.keySet()) {
+			if (box.isFocused() && box.isVisible()) {
+				focused = box;
+			}
+		}
+		if (focused == null || focused.getValue().equals(dismissedFor)) {
+			hideSuggestions();
+			return;
+		}
+		dismissedFor = null;
+		String text = focused.getValue().toLowerCase(Locale.ROOT);
+		List<String> matching = new ArrayList<>();
+		for (String candidate : completions.get(focused).get()) {
+			String lower = candidate.toLowerCase(Locale.ROOT);
+			if (!lower.equals(text) && lower.contains(text)) {
+				matching.add(candidate);
+			}
+		}
+		if (matching.isEmpty()) {
+			hideSuggestions();
+			return;
+		}
+		if (focused != suggestionBox || !matching.equals(suggestions)) {
+			selectedSuggestion = 0;
+			firstVisibleSuggestion = 0;
+		}
+		suggestionBox = focused;
+		suggestions = matching;
+	}
+
+	private void hideSuggestions() {
+		suggestionBox = null;
+		suggestions = List.of();
+	}
+
+	private void acceptSuggestion(int index) {
+		if (suggestionBox != null && index >= 0 && index < suggestions.size()) {
+			String value = suggestions.get(index);
+			suggestionBox.setValue(value);
+			dismissedFor = value;
+			hideSuggestions();
+		}
+	}
+
+	private void moveSelection(int delta) {
+		int size = suggestions.size();
+		selectedSuggestion = Math.floorMod(selectedSuggestion + delta, size);
+		if (selectedSuggestion < firstVisibleSuggestion) {
+			firstVisibleSuggestion = selectedSuggestion;
+		} else if (selectedSuggestion >= firstVisibleSuggestion + MAX_VISIBLE_SUGGESTIONS) {
+			firstVisibleSuggestion = selectedSuggestion - MAX_VISIBLE_SUGGESTIONS + 1;
+		}
+	}
+
+	@Override
+	public boolean keyPressed(KeyEvent event) {
+		if (suggestionBox != null && !suggestions.isEmpty()) {
+			switch (event.key()) {
+				case GLFW.GLFW_KEY_DOWN -> {
+					moveSelection(1);
+					return true;
+				}
+				case GLFW.GLFW_KEY_UP -> {
+					moveSelection(-1);
+					return true;
+				}
+				case GLFW.GLFW_KEY_TAB, GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> {
+					acceptSuggestion(selectedSuggestion);
+					return true;
+				}
+				case GLFW.GLFW_KEY_ESCAPE -> {
+					dismissedFor = suggestionBox.getValue();
+					hideSuggestions();
+					return true;
+				}
+				default -> {
+				}
+			}
+		}
+		return super.keyPressed(event);
+	}
+
+	@Override
+	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		if (suggestionBox != null && !suggestions.isEmpty()) {
+			int visible = Math.min(MAX_VISIBLE_SUGGESTIONS, suggestions.size());
+			if (event.x() >= popupX && event.x() < popupX + popupWidth
+				&& event.y() >= popupY && event.y() < popupY + visible * SUGGESTION_HEIGHT) {
+				acceptSuggestion(firstVisibleSuggestion + (int) ((event.y() - popupY) / SUGGESTION_HEIGHT));
+				return true;
+			}
+		}
+		return super.mouseClicked(event, doubleClick);
+	}
+
+	@Override
+	public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+		if (suggestionBox != null && suggestions.size() > MAX_VISIBLE_SUGGESTIONS
+			&& x >= popupX && x < popupX + popupWidth && y >= popupY && y < popupY + MAX_VISIBLE_SUGGESTIONS * SUGGESTION_HEIGHT) {
+			moveSelection(scrollY > 0 ? -1 : 1);
+			return true;
+		}
+		return super.mouseScrolled(x, y, scrollX, scrollY);
 	}
 }

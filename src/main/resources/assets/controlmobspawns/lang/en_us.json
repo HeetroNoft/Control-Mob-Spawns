@@ -1,11 +1,9 @@
 {
 	"modmenu.descriptionTranslation.controlmobspawns": "Disable mobs, adjust spawn rates, mob caps, despawn and spawn rules from an in-game menu.",
 	"controlmobspawns.title": "Control Mob Spawns",
-
 	"controlmobspawns.message.no_permission": "You do not have permission to change the Control Mob Spawns configuration.",
 	"controlmobspawns.message.saved": "Control Mob Spawns configuration saved.",
 	"controlmobspawns.message.despawned": "Removed %s × %s.",
-
 	"controlmobspawns.gui.yacl_missing": "The configuration screen needs YetAnotherConfigLib (YACL). Install it to edit the settings in game.",
 	"controlmobspawns.gui.loading": "Loading…",
 	"controlmobspawns.gui.search": "Search…",
@@ -22,14 +20,12 @@
 	"controlmobspawns.gui.max": "Max",
 	"controlmobspawns.gui.scope.global": "Global",
 	"controlmobspawns.gui.scope.world": "This world",
-
 	"controlmobspawns.gui.home.ready": "Choose which configuration to edit.",
 	"controlmobspawns.gui.home.global": "Global configuration",
 	"controlmobspawns.gui.home.global.hint": "Applies to every world, unless a world overrides a value.",
 	"controlmobspawns.gui.home.world": "This world's configuration",
 	"controlmobspawns.gui.home.world.hint": "Overrides the global values for this world only. Only the values that differ from the global configuration are saved.",
 	"controlmobspawns.gui.home.missing_on_server": "Control Mob Spawns is not installed on this server.",
-
 	"controlmobspawns.config.general": "General",
 	"controlmobspawns.config.screens": "Editors",
 	"controlmobspawns.config.open": "Open",
@@ -37,8 +33,6 @@
 	"controlmobspawns.config.open.mobs.desc": "Spawn rate, bans, spawn types, NBT, spawn rules and despawn for each mob.",
 	"controlmobspawns.config.open.biome_spawns": "Biome spawns",
 	"controlmobspawns.config.open.biome_spawns.desc": "Make mobs spawn naturally in biomes where they normally do not.",
-	"controlmobspawns.config.open.current": "Current mobs",
-	"controlmobspawns.config.open.current.desc": "Mobs currently in the world and their counts, with shortcuts to adjust, ban or remove them.",
 	"controlmobspawns.config.coverage": "What the bans apply to",
 	"controlmobspawns.config.coverage.modded": "Mobs from other mods",
 	"controlmobspawns.config.coverage.modded.desc": "When off, the settings only affect Minecraft's own mobs.",
@@ -61,7 +55,6 @@
 	"controlmobspawns.config.despawn.instant.desc": "Mobs farther than this from every player despawn immediately (vanilla: %s blocks).",
 	"controlmobspawns.config.despawn.random": "Random despawn distance",
 	"controlmobspawns.config.despawn.random.desc": "Beyond this distance, idle mobs can despawn at random (vanilla: %s blocks).",
-
 	"controlmobspawns.mob_category.monster": "Monsters",
 	"controlmobspawns.mob_category.creature": "Animals",
 	"controlmobspawns.mob_category.ambient": "Ambient (bats)",
@@ -69,7 +62,6 @@
 	"controlmobspawns.mob_category.underground_water_creature": "Underground water creatures",
 	"controlmobspawns.mob_category.water_creature": "Water creatures",
 	"controlmobspawns.mob_category.water_ambient": "Water ambient (fish)",
-
 	"controlmobspawns.gui.mobs.title": "Mobs",
 	"controlmobspawns.gui.mobs.columns": "Mob · spawn rate (%%) · allowed/banned · ⚙ settings",
 	"controlmobspawns.gui.spawn_rate": "Spawn rate (%%)",
@@ -89,13 +81,11 @@
 	"controlmobspawns.despawn_mode.default": "Default",
 	"controlmobspawns.despawn_mode.never": "Never",
 	"controlmobspawns.despawn_mode.force": "Force",
-
 	"controlmobspawns.gui.ids.selected": "Selected (%s)",
 	"controlmobspawns.gui.ids.suggestions": "Suggestions",
 	"controlmobspawns.gui.ids.add_typed": "Add \"%s\"",
 	"controlmobspawns.gui.ids.no_suggestions": "No suggestions here: type an id (namespace:path) or a tag (#namespace:path) in the search box.",
 	"controlmobspawns.gui.ids.hint": "Tags start with # and match every biome they contain.",
-
 	"controlmobspawns.reason.natural": "Natural",
 	"controlmobspawns.reason.natural.hint": "Regular spawning around players.",
 	"controlmobspawns.reason.chunk_generation": "Chunk generation",
@@ -130,7 +120,6 @@
 	"controlmobspawns.reason.patrol.hint": "Pillager patrols.",
 	"controlmobspawns.reason.trial_spawner": "Trial spawner",
 	"controlmobspawns.reason.trial_spawner.hint": "Trial spawners in trial chambers.",
-
 	"controlmobspawns.gui.nbt.path": "NBT path",
 	"controlmobspawns.gui.nbt.value": "NBT value",
 	"controlmobspawns.gui.nbt.percent": "Percentage",
@@ -145,7 +134,6 @@
 	"controlmobspawns.gui.nbt_proportions.over": "%s adds up to %s%% (over 100%%)",
 	"controlmobspawns.gui.nbt_proportions.check": "Check totals",
 	"controlmobspawns.gui.nbt_proportions.check.hint": "Shows a warning for each path whose percentages add up to more than 100%%.",
-
 	"controlmobspawns.gui.rule.title": "Spawn rule",
 	"controlmobspawns.gui.rule.hint": "When enabled, these conditions replace the mob's own spawn conditions (light, block, height…), which lets it spawn where it normally cannot. Empty fields mean no limit. The position must still suit the mob (on the ground, in water…).",
 	"controlmobspawns.gui.rule.none": "None",
@@ -180,7 +168,6 @@
 	"controlmobspawns.moon.waxing_crescent": "Waxing crescent",
 	"controlmobspawns.moon.first_quarter": "First quarter",
 	"controlmobspawns.moon.waxing_gibbous": "Waxing gibbous",
-
 	"controlmobspawns.gui.biome_spawns.title": "Biome spawns",
 	"controlmobspawns.gui.biome_spawns.hint": "Adds a mob to the natural spawns of the chosen biomes. The weight is compared with the other mobs of the same category (most vanilla mobs have 5 to 100). The mob must still find a valid position: add a spawn rule if its own conditions are too strict.",
 	"controlmobspawns.gui.biome_spawns.columns": "Mob id · biomes · weight · min · max group size",
@@ -188,11 +175,20 @@
 	"controlmobspawns.gui.biome_spawns.biomes": "Biomes (%s)",
 	"controlmobspawns.gui.biome_spawns.biomes_title": "Biomes",
 	"controlmobspawns.gui.biome_spawns.weight": "Weight",
-
-	"controlmobspawns.gui.current.title": "Current mobs",
-	"controlmobspawns.gui.current.total": "%s mobs",
 	"controlmobspawns.gui.current.row": "%s × %s",
 	"controlmobspawns.gui.current.all_dimensions": "All dimensions",
 	"controlmobspawns.gui.current.despawn_all": "Despawn all",
-	"controlmobspawns.gui.current.despawn_all.hint": "Removes every mob of this type now, in the selected dimension. One-off action for testing: it does not change the configuration."
+	"controlmobspawns.gui.current.despawn_all.hint": "Removes every mob of this type now, in the selected dimension. One-off action for testing: it does not change the configuration.",
+	"controlmobspawns.config.current": "Current mobs",
+	"controlmobspawns.config.current.desc": "Mobs currently in the world and their counts, with shortcuts to ban or remove them.",
+	"controlmobspawns.config.current.total": "%s mobs in the world",
+	"controlmobspawns.config.current.refresh.desc": "Counts the mobs again. Values changed in the other tabs are kept.",
+	"controlmobspawns.config.current.banned.desc": "Bans this mob everywhere. Applied when the configuration is saved.",
+	"controlmobspawns.config.current.despawn": "Despawn: %s (%s)",
+	"controlmobspawns.gui.nbt_picker.title": "NBT paths of %s",
+	"controlmobspawns.gui.nbt_picker.open": "List of this mob's NBT paths",
+	"controlmobspawns.gui.nbt_picker.hint": "Paths read on a newly created mob and on the mobs of this type already in the world, with the values seen. Choose a path alone, or a path with one of its values.",
+	"controlmobspawns.gui.nbt_picker.choose_path": "Path",
+	"controlmobspawns.gui.nbt_picker.choose_value": "Path + value",
+	"controlmobspawns.gui.nbt_picker.world_only": "The list of NBT paths is only available in a world (the server reads it from the mobs)."
 }

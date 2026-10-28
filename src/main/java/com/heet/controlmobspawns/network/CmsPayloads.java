@@ -116,7 +116,46 @@ public final class CmsPayloads {
 		}
 	}
 
+	/** Client asks for the NBT paths of an entity type, to suggest them in the NBT editors. */
+	public record RequestNbtPaths(String entity) implements CustomPacketPayload {
+		public static final Type<RequestNbtPaths> TYPE = payloadType("request_nbt_paths");
+		public static final StreamCodec<RegistryFriendlyByteBuf, RequestNbtPaths> CODEC = StreamCodec.composite(
+			ByteBufCodecs.STRING_UTF8, RequestNbtPaths::entity,
+			RequestNbtPaths::new
+		);
+
+		@Override
+		public Type<RequestNbtPaths> type() {
+			return TYPE;
+		}
+	}
+
+	/** An NBT path and the values seen there, as SNBT. */
+	public record NbtPathInfo(String path, List<String> values) {
+		public static final StreamCodec<ByteBuf, NbtPathInfo> CODEC = StreamCodec.composite(
+			ByteBufCodecs.STRING_UTF8, NbtPathInfo::path,
+			STRING_LIST, NbtPathInfo::values,
+			NbtPathInfo::new
+		);
+	}
+
+	public record NbtPaths(String entity, List<NbtPathInfo> paths) implements CustomPacketPayload {
+		public static final Type<NbtPaths> TYPE = payloadType("nbt_paths");
+		public static final StreamCodec<RegistryFriendlyByteBuf, NbtPaths> CODEC = StreamCodec.composite(
+			ByteBufCodecs.STRING_UTF8, NbtPaths::entity,
+			NbtPathInfo.CODEC.apply(ByteBufCodecs.list()), NbtPaths::paths,
+			NbtPaths::new
+		);
+
+		@Override
+		public Type<NbtPaths> type() {
+			return TYPE;
+		}
+	}
+
 	public static void register() {
+		PayloadTypeRegistry.serverboundPlay().register(RequestNbtPaths.TYPE, RequestNbtPaths.CODEC);
+		PayloadTypeRegistry.clientboundPlay().registerLarge(NbtPaths.TYPE, NbtPaths.CODEC, MAX_PACKET);
 		PayloadTypeRegistry.serverboundPlay().register(RequestSync.TYPE, RequestSync.CODEC);
 		PayloadTypeRegistry.serverboundPlay().registerLarge(Save.TYPE, Save.CODEC, MAX_PACKET);
 		PayloadTypeRegistry.serverboundPlay().register(RequestMobCounts.TYPE, RequestMobCounts.CODEC);

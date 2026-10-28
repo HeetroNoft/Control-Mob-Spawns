@@ -4,6 +4,7 @@ import com.heet.controlmobspawns.ControlMobSpawns;
 import com.heet.controlmobspawns.config.CmsConfig;
 import com.heet.controlmobspawns.config.ConfigManager;
 import com.heet.controlmobspawns.spawn.ExistingMobCleaner;
+import com.heet.controlmobspawns.spawn.NbtPathCollector;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -21,6 +22,7 @@ import net.minecraft.server.permissions.Permission;
 import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 
@@ -33,6 +35,19 @@ public final class ServerHandlers {
 		ServerPlayNetworking.registerGlobalReceiver(CmsPayloads.Save.TYPE, (payload, context) -> save(context.player(), payload));
 		ServerPlayNetworking.registerGlobalReceiver(CmsPayloads.RequestMobCounts.TYPE, (payload, context) -> sendMobCounts(context.player()));
 		ServerPlayNetworking.registerGlobalReceiver(CmsPayloads.DespawnAll.TYPE, (payload, context) -> despawnAll(context.player(), payload));
+		ServerPlayNetworking.registerGlobalReceiver(CmsPayloads.RequestNbtPaths.TYPE, (payload, context) -> sendNbtPaths(context.player(), payload));
+	}
+
+	private static void sendNbtPaths(ServerPlayer player, CmsPayloads.RequestNbtPaths payload) {
+		if (!canEdit(player)) {
+			return;
+		}
+		Identifier typeId = Identifier.tryParse(payload.entity());
+		EntityType<?> type = typeId == null ? null : BuiltInRegistries.ENTITY_TYPE.getOptional(typeId).orElse(null);
+		if (type == null || type == EntityTypes.PLAYER) {
+			return;
+		}
+		ServerPlayNetworking.send(player, new CmsPayloads.NbtPaths(payload.entity(), NbtPathCollector.collect(player.level().getServer(), type)));
 	}
 
 	public static boolean canEdit(ServerPlayer player) {
