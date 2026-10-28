@@ -7,11 +7,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.layouts.HeaderAndFooterLayout;
+import net.minecraft.client.gui.layouts.LayoutElement;
 import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
@@ -31,7 +35,7 @@ public abstract class CmsScreen extends Screen {
 
 	protected final Screen parent;
 	protected final ClientSession session;
-	protected final HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this);
+	protected HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this);
 	protected RowList list;
 	protected @Nullable EditBox searchBox;
 	private String search = "";
@@ -57,13 +61,39 @@ public abstract class CmsScreen extends Screen {
 		return false;
 	}
 
+	/** A short explanation of the screen, shown on the ⓘ next to the title. */
+	protected @Nullable Component help() {
+		return null;
+	}
+
+	/** Tab names; a tab bar is shown when there are several. */
+	protected List<Component> tabs() {
+		return List.of();
+	}
+
+	protected int selectedTab() {
+		return 0;
+	}
+
+	protected void onTabSelected(int tab) {
+	}
+
+	/** Widgets above the list, spanning the row width; null for no toolbar. */
+	protected @Nullable LayoutElement toolbar(int rowWidth) {
+		return null;
+	}
+
 	protected abstract List<RowList.Row> buildRows();
 
-	/** Buttons added to the footer before "Done". */
+	/** Buttons added to the footer, before "Done" when it is shown. */
 	protected void addFooterButtons(LinearLayout footer) {
 	}
 
-	/** Called when the screen is closed. Top-level screens save the session here. */
+	protected boolean showDoneButton() {
+		return true;
+	}
+
+	/** Called when the screen is closed with "Done" or Escape. */
 	protected void onDone() {
 	}
 
@@ -77,29 +107,80 @@ public abstract class CmsScreen extends Screen {
 		return box;
 	}
 
+	/** Switches tab: the header changes, so the widgets are rebuilt. */
+	protected void selectTab(int tab) {
+		search = "";
+		onTabSelected(tab);
+		rebuildWidgets();
+		refresh();
+	}
+
 	@Override
 	protected void init() {
+		layout = new HeaderAndFooterLayout(this);
+		int rowWidth = RowList.rowWidth(width);
 		LinearLayout header = layout.addToHeader(LinearLayout.vertical().spacing(4));
 		header.defaultCellSetting().alignHorizontallyCenter();
-		header.addChild(new StringWidget(title, font));
+		LinearLayout titleLine = header.addChild(LinearLayout.horizontal().spacing(4));
+		titleLine.addChild(new StringWidget(title, font));
+		Component help = help();
+		if (help != null) {
+			StringWidget info = new StringWidget(Component.literal("ⓘ").withStyle(ChatFormatting.GRAY), font);
+			info.setTooltip(Tooltip.create(help));
+			titleLine.addChild(info);
+		}
+		int headerHeight = 24;
+		List<Component> tabs = tabs();
+		if (tabs.size() > 1) {
+			LinearLayout tabBar = header.addChild(LinearLayout.horizontal().spacing(2));
+			for (int i = 0; i < tabs.size(); i++) {
+				int index = i;
+				tabBar.addChild(new TabButton(tabs.get(i), i == selectedTab(), () -> selectTab(index)));
+			}
+			headerHeight += 20;
+		}
+		searchBox = null;
 		if (hasSearch()) {
-			searchBox = new EditBox(font, 220, 18, Component.translatable("controlmobspawns.gui.search"));
-			searchBox.setHint(Component.translatable("controlmobspawns.gui.search"));
+			searchBox = new EditBox(font, rowWidth, 18, Component.translatable("controlmobspawns.gui.search"));
+			searchBox.setHint(Component.translatable("controlmobspawns.gui.search").withStyle(ChatFormatting.DARK_GRAY));
 			searchBox.setValue(search);
 			searchBox.setResponder(value -> {
 				search = value;
 				refresh();
 			});
 			header.addChild(searchBox);
-			layout.setHeaderHeight(52);
+			headerHeight += 22;
 		}
+		LayoutElement toolbar = toolbar(rowWidth);
+		if (toolbar != null) {
+			header.addChild(toolbar);
+			headerHeight += 24;
+		}
+		layout.setHeaderHeight(headerHeight);
 		list = layout.addToContents(new RowList(minecraft, width));
 		LinearLayout footer = layout.addToFooter(LinearLayout.horizontal().spacing(8));
 		addFooterButtons(footer);
-		footer.addChild(Button.builder(CommonComponents.GUI_DONE, button -> onClose()).width(150).build());
+		if (showDoneButton()) {
+			footer.addChild(Button.builder(CommonComponents.GUI_DONE, button -> onClose()).width(150).build());
+		}
 		layout.visitWidgets(this::addRenderableWidget);
 		refresh();
 		repositionElements();
+	}
+
+	/** A toolbar line: a label on the left and widgets on the right, as wide as the rows. */
+	protected LayoutElement toolbarLine(int rowWidth, Component label, AbstractWidget... right) {
+		LinearLayout line = LinearLayout.horizontal().spacing(4);
+		line.defaultCellSetting().alignVerticallyMiddle();
+		int rightWidth = 0;
+		for (AbstractWidget widget : right) {
+			rightWidth += widget.getWidth() + 4;
+		}
+		line.addChild(new StringWidget(Math.max(0, rowWidth - rightWidth), 20, label, font));
+		for (AbstractWidget widget : right) {
+			line.addChild(widget);
+		}
+		return line;
 	}
 
 	@Override

@@ -56,9 +56,13 @@ public class CmsConfig {
 		public DespawnMode despawn = DespawnMode.DEFAULT;
 
 		public boolean isDefault() {
-			return spawnRate == 100.0 && !banned && bannedDimensions.isEmpty() && bannedBiomes.isEmpty()
-				&& disabledReasons.isEmpty() && nbtBans.isEmpty() && nbtProportions.isEmpty()
-				&& spawnRule == null && despawn == DespawnMode.DEFAULT;
+			return spawnRate == 100.0 && !banned && !hasDetailedSettings();
+		}
+
+		/** Settings other than the spawn rate and the global ban, which are edited in the ⚙ sub-menu. */
+		public boolean hasDetailedSettings() {
+			return !bannedDimensions.isEmpty() || !bannedBiomes.isEmpty() || !disabledReasons.isEmpty()
+				|| !nbtBans.isEmpty() || !nbtProportions.isEmpty() || spawnRule != null || despawn != DespawnMode.DEFAULT;
 		}
 	}
 

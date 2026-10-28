@@ -32,6 +32,11 @@ public class NbtPathPickerScreen extends CmsScreen {
 	}
 
 	@Override
+	protected @Nullable Component help() {
+		return Component.translatable("controlmobspawns.gui.nbt_picker.hint");
+	}
+
+	@Override
 	public void added() {
 		super.added();
 		NbtSuggestions.setListener(this::refresh);
@@ -49,23 +54,21 @@ public class NbtPathPickerScreen extends CmsScreen {
 		List<RowList.Row> rows = new ArrayList<>();
 		List<CmsPayloads.NbtPathInfo> paths = NbtSuggestions.get(entity);
 		if (paths == null) {
-			rows.add(RowList.row(Component.translatable(NbtSuggestions.available()
-				? "controlmobspawns.gui.loading" : "controlmobspawns.gui.nbt_picker.world_only").withStyle(ChatFormatting.GRAY)));
+			rows.add(RowList.note(Component.translatable(NbtSuggestions.available()
+				? "controlmobspawns.gui.loading" : "controlmobspawns.gui.nbt_picker.world_only")));
 			return rows;
 		}
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.help").withStyle(ChatFormatting.GRAY), null,
-			Component.translatable("controlmobspawns.gui.nbt_picker.hint")));
 		for (CmsPayloads.NbtPathInfo info : paths) {
 			if (!Mobs.contains(info.path(), search())) {
 				continue;
 			}
-			rows.add(RowList.row(Component.literal(info.path()),
-				Widgets.button(Component.translatable("controlmobspawns.gui.nbt_picker.choose_path"), 90, button -> pick(info.path(), null))));
+			rows.add(RowList.row(Component.literal(info.path()))
+				.hover(Widgets.button(Component.translatable("controlmobspawns.gui.nbt_picker.choose_path"), 90, button -> pick(info.path(), null))));
 			List<String> values = info.values();
 			for (int i = 0; i < Math.min(values.size(), MAX_VALUES_SHOWN); i++) {
 				String value = values.get(i);
-				rows.add(RowList.row(Component.literal("    = " + value).withStyle(ChatFormatting.GRAY),
-					Widgets.button(Component.translatable("controlmobspawns.gui.nbt_picker.choose_value"), 90, button -> pick(info.path(), value))));
+				rows.add(RowList.row(Component.literal("    = " + value).withStyle(ChatFormatting.GRAY))
+					.hover(Widgets.button(Component.translatable("controlmobspawns.gui.nbt_picker.choose_value"), 90, button -> pick(info.path(), value))));
 			}
 		}
 		return rows;

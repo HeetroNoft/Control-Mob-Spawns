@@ -9,6 +9,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.jspecify.annotations.Nullable;
 
 /** Blocks the mob when one of its NBT values matches. */
 public class NbtBansScreen extends CmsScreen {
@@ -22,6 +23,11 @@ public class NbtBansScreen extends CmsScreen {
 	}
 
 	@Override
+	protected @Nullable Component help() {
+		return Component.translatable("controlmobspawns.gui.nbt_bans.hint");
+	}
+
+	@Override
 	public void added() {
 		super.added();
 		NbtSuggestions.request(entity);
@@ -30,22 +36,20 @@ public class NbtBansScreen extends CmsScreen {
 	@Override
 	protected List<RowList.Row> buildRows() {
 		List<RowList.Row> rows = new ArrayList<>();
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.help").withStyle(ChatFormatting.GRAY), null,
-			Component.translatable("controlmobspawns.gui.nbt_bans.hint")));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.nbt_bans.columns").withStyle(ChatFormatting.GRAY)));
+		if (settings.nbtBans.isEmpty()) {
+			rows.add(RowList.note(Component.translatable("controlmobspawns.gui.nbt.empty")));
+		}
 		for (CmsConfig.NbtBan ban : List.copyOf(settings.nbtBans)) {
-			rows.add(RowList.row(Component.empty(),
-				autocomplete(Widgets.textBox(ban.path, 140, Component.translatable("controlmobspawns.gui.nbt.path"), NbtValidation::isPath,
-					value -> ban.path = value), () -> NbtSuggestions.paths(entity)),
-				NbtValidation.pickerButton(this, session, entity, (path, value) -> {
+			rows.add(RowList.row(Component.empty())
+				.add(NbtValidation.pathBox(this, entity, ban.path, 150, value -> ban.path = value))
+				.hover(NbtValidation.pickerButton(this, session, entity, (path, value) -> {
 					ban.path = path;
 					if (value != null) {
 						ban.value = value;
 					}
-				}),
-				autocomplete(Widgets.textBox(ban.value, 100, Component.translatable("controlmobspawns.gui.nbt.value"), NbtValidation::isValue,
-					value -> ban.value = value), () -> NbtSuggestions.values(entity, ban.path)),
-				Widgets.button(Component.literal("✕").withStyle(ChatFormatting.RED), 20, Component.translatable("controlmobspawns.gui.remove"), button -> {
+				}))
+				.add(NbtValidation.valueBox(this, entity, ban.value, 110, () -> ban.path, value -> ban.value = value))
+				.hover(Widgets.button(Component.literal("✕").withStyle(ChatFormatting.RED), 20, Component.translatable("controlmobspawns.gui.remove"), button -> {
 					settings.nbtBans.remove(ban);
 					refresh();
 				})));

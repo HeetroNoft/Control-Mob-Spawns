@@ -14,14 +14,13 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import org.jspecify.annotations.Nullable;
 
-/** The ⚙ sub-menu of a mob. */
+/** The ⚙ sub-menu of a mob: each value as text, its control on hover. */
 public class MobDetailScreen extends CmsScreen {
 	/** Reasons that are not new spawns and cannot be disabled. */
 	private static final List<EntitySpawnReason> REASONS = Arrays.stream(EntitySpawnReason.values())
@@ -42,61 +41,72 @@ public class MobDetailScreen extends CmsScreen {
 	protected List<RowList.Row> buildRows() {
 		List<RowList.Row> rows = new ArrayList<>();
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.spawn")));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.spawn_rate"), null,
-			Component.translatable("controlmobspawns.gui.spawn_rate.hint"),
-			Widgets.positiveDoubleBox(settings.spawnRate, 60, Component.translatable("controlmobspawns.gui.spawn_rate"), value -> settings.spawnRate = value)));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.mob.global_ban"),
-			Widgets.toggle(!settings.banned, 80, Component.translatable("controlmobspawns.gui.allowed"), Component.translatable("controlmobspawns.gui.banned"),
-				allowed -> settings.banned = !allowed)));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.mob.banned_dimensions"),
-			editButton(settings.bannedDimensions.size(), () -> new IdListScreen(this, session,
-				Component.translatable("controlmobspawns.gui.mob.banned_dimensions"), settings.bannedDimensions, session.dimensions))));
+		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.spawn_rate"))
+			.info(Component.translatable("controlmobspawns.gui.spawn_rate.hint"))
+			.rest(value(Component.translatable("controlmobspawns.gui.percent", Widgets.formatNumber(settings.spawnRate)), settings.spawnRate != 100.0))
+			.hover(Widgets.positiveDoubleBox(settings.spawnRate, 60, Component.translatable("controlmobspawns.gui.spawn_rate"), value -> settings.spawnRate = value)));
+		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.mob.global_ban"))
+			.rest(banState(settings.banned))
+			.hover(Widgets.toggle(!settings.banned, 80, Component.translatable("controlmobspawns.gui.allowed"), Component.translatable("controlmobspawns.gui.banned"),
+				allowed -> {
+					settings.banned = !allowed;
+					refresh();
+				})));
+		rows.add(listRow(Component.translatable("controlmobspawns.gui.mob.banned_dimensions"), null, settings.bannedDimensions.size(),
+			() -> new IdListScreen(this, session, Component.translatable("controlmobspawns.gui.mob.banned_dimensions"), settings.bannedDimensions, session.dimensions)));
 		List<String> biomeChoices = Stream.concat(session.biomes.stream(), session.biomeTags.stream().map(tag -> "#" + tag)).toList();
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.mob.banned_biomes"), null,
-			Component.translatable("controlmobspawns.gui.ids.hint"),
-			editButton(settings.bannedBiomes.size(), () -> new IdListScreen(this, session,
-				Component.translatable("controlmobspawns.gui.mob.banned_biomes"), settings.bannedBiomes, biomeChoices))));
+		rows.add(listRow(Component.translatable("controlmobspawns.gui.mob.banned_biomes"), Component.translatable("controlmobspawns.gui.ids.hint"),
+			settings.bannedBiomes.size(),
+			() -> new IdListScreen(this, session, Component.translatable("controlmobspawns.gui.mob.banned_biomes"), settings.bannedBiomes, biomeChoices)));
 
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.reasons")));
 		for (EntitySpawnReason reason : REASONS) {
 			String name = reason.name();
-			rows.add(RowList.row(reasonName(reason), null, Component.translatable("controlmobspawns.reason." + name.toLowerCase(Locale.ROOT) + ".hint"),
-				Widgets.toggle(!settings.disabledReasons.contains(name), 80,
-					Component.translatable("controlmobspawns.gui.enabled"), Component.translatable("controlmobspawns.gui.disabled"),
-					enabled -> {
+			boolean enabled = !settings.disabledReasons.contains(name);
+			rows.add(RowList.row(reasonName(reason))
+				.info(Component.translatable("controlmobspawns.reason." + name.toLowerCase(Locale.ROOT) + ".hint"))
+				.rest(enabled
+					? Component.translatable("controlmobspawns.gui.enabled").withStyle(ChatFormatting.GRAY)
+					: Component.translatable("controlmobspawns.gui.disabled").withStyle(ChatFormatting.RED))
+				.hover(Widgets.toggle(enabled, 80, Component.translatable("controlmobspawns.gui.enabled"), Component.translatable("controlmobspawns.gui.disabled"),
+					value -> {
 						settings.disabledReasons.remove(name);
-						if (!enabled) {
+						if (!value) {
 							settings.disabledReasons.add(name);
 						}
+						refresh();
 					})));
 		}
 
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.nbt")));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.nbt_bans.title"), null,
-			Component.translatable("controlmobspawns.gui.nbt_bans.hint"),
-			editButton(settings.nbtBans.size(), () -> new NbtBansScreen(this, session, id, settings))));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.nbt_proportions.title"), null,
-			Component.translatable("controlmobspawns.gui.nbt_proportions.hint"),
-			editButton(settings.nbtProportions.size(), () -> new NbtProportionsScreen(this, session, id, settings))));
+		rows.add(listRow(Component.translatable("controlmobspawns.gui.nbt_bans.title"), Component.translatable("controlmobspawns.gui.nbt_bans.hint"),
+			settings.nbtBans.size(), () -> new NbtBansScreen(this, session, id, settings)));
+		rows.add(listRow(Component.translatable("controlmobspawns.gui.nbt_proportions.title"), Component.translatable("controlmobspawns.gui.nbt_proportions.hint"),
+			settings.nbtProportions.size(), () -> new NbtProportionsScreen(this, session, id, settings)));
 
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.rules")));
-		Component ruleState = Component.translatable(settings.spawnRule != null && settings.spawnRule.enabled
-			? "controlmobspawns.gui.rule.active" : "controlmobspawns.gui.rule.none");
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.rule.title"), null,
-			Component.translatable("controlmobspawns.gui.rule.hint"),
-			Widgets.button(ruleState, 100, button -> minecraft.gui.setScreen(new SpawnRuleScreen(this, session, settings)))));
+		boolean ruleActive = settings.spawnRule != null && settings.spawnRule.enabled;
+		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.rule.title"))
+			.info(Component.translatable("controlmobspawns.gui.rule.hint"))
+			.rest(value(Component.translatable(ruleActive ? "controlmobspawns.gui.rule.active" : "controlmobspawns.gui.rule.none"), ruleActive))
+			.hover(Widgets.button(Component.translatable("controlmobspawns.gui.edit"), 80,
+				button -> minecraft.gui.setScreen(new SpawnRuleScreen(this, session, settings)))));
 
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.despawn")));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.despawn_mode"), null,
-			Component.translatable("controlmobspawns.gui.despawn_mode.hint"),
-			Widgets.cycle(List.of(CmsConfig.DespawnMode.values()), settings.despawn, 100,
-				mode -> Component.translatable("controlmobspawns.despawn_mode." + mode.name().toLowerCase(Locale.ROOT)),
-				mode -> settings.despawn = mode)));
+		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.despawn_mode"))
+			.info(Component.translatable("controlmobspawns.gui.despawn_mode.hint"))
+			.rest(value(despawnModeName(settings.despawn), settings.despawn != CmsConfig.DespawnMode.DEFAULT))
+			.hover(Widgets.cycle(List.of(CmsConfig.DespawnMode.values()), settings.despawn, 100, MobDetailScreen::despawnModeName,
+				mode -> {
+					settings.despawn = mode;
+					refresh();
+				})));
 
 		if (session.remote) {
-			rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.despawn_now")));
+			rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.despawn_now"))
+				.info(Component.translatable("controlmobspawns.gui.mob.despawn_now.hint")));
 			if (counts == null) {
-				rows.add(RowList.row(Component.translatable("controlmobspawns.gui.loading").withStyle(ChatFormatting.GRAY)));
+				rows.add(RowList.note(Component.translatable("controlmobspawns.gui.loading")));
 			} else {
 				int total = counts.values().stream().mapToInt(Integer::intValue).sum();
 				rows.add(despawnRow(Component.translatable("controlmobspawns.gui.current.all_dimensions"), "", total));
@@ -106,11 +116,33 @@ public class MobDetailScreen extends CmsScreen {
 		return rows;
 	}
 
+	/** A row opening a list editor; at rest the number of entries. */
+	private RowList.Row listRow(Component label, @Nullable Component info, int count, Supplier<Screen> screen) {
+		return RowList.row(label).info(info)
+			.rest(value(count == 0 ? Component.translatable("controlmobspawns.gui.none") : Component.literal(Integer.toString(count)), count > 0))
+			.hover(Widgets.button(Component.translatable("controlmobspawns.gui.edit"), 80, button -> minecraft.gui.setScreen(screen.get())));
+	}
+
 	private RowList.Row despawnRow(Component where, String dimension, int count) {
-		return RowList.row(Component.translatable("controlmobspawns.gui.mob.despawn_now.row", where, count), null,
-			Component.translatable("controlmobspawns.gui.current.despawn_all.hint"),
-			Widgets.button(Component.translatable("controlmobspawns.gui.current.despawn_all"), 100,
+		return RowList.row(where)
+			.rest(Component.literal(Integer.toString(count)).withStyle(ChatFormatting.GRAY))
+			.hover(Widgets.button(Component.translatable("controlmobspawns.gui.current.despawn_all"), 80,
 				button -> ClientPlayNetworking.send(new CmsPayloads.DespawnAll(id, dimension))));
+	}
+
+	/** A value at rest: gray when vanilla, yellow when changed. */
+	static Component value(Component text, boolean modified) {
+		return text.copy().withStyle(modified ? ChatFormatting.YELLOW : ChatFormatting.GRAY);
+	}
+
+	private static Component banState(boolean banned) {
+		return banned
+			? Component.translatable("controlmobspawns.gui.banned").withStyle(ChatFormatting.RED)
+			: Component.translatable("controlmobspawns.gui.allowed").withStyle(ChatFormatting.GRAY);
+	}
+
+	private static Component despawnModeName(CmsConfig.DespawnMode mode) {
+		return Component.translatable("controlmobspawns.despawn_mode." + mode.name().toLowerCase(Locale.ROOT));
 	}
 
 	/** Counts of this mob per dimension; the server sends them again after each despawn. */
@@ -136,10 +168,6 @@ public class MobDetailScreen extends CmsScreen {
 	public void removed() {
 		super.removed();
 		ControlMobSpawnsClient.setMobCountListener(null);
-	}
-
-	private Button editButton(int count, Supplier<Screen> screen) {
-		return Widgets.button(Component.translatable("controlmobspawns.gui.edit_count", count), 100, button -> minecraft.gui.setScreen(screen.get()));
 	}
 
 	public static Component reasonName(EntitySpawnReason reason) {

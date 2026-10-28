@@ -8,9 +8,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.jspecify.annotations.Nullable;
 
 /** Forces the share of spawned mobs that get each NBT value. */
 public class NbtProportionsScreen extends CmsScreen {
@@ -24,6 +26,12 @@ public class NbtProportionsScreen extends CmsScreen {
 	}
 
 	@Override
+	protected @Nullable Component help() {
+		return Component.translatable("controlmobspawns.gui.nbt_proportions.hint")
+			.append("\n\n").append(Component.translatable("controlmobspawns.gui.nbt_proportions.limit.hint"));
+	}
+
+	@Override
 	public void added() {
 		super.added();
 		NbtSuggestions.request(entity);
@@ -32,10 +40,6 @@ public class NbtProportionsScreen extends CmsScreen {
 	@Override
 	protected List<RowList.Row> buildRows() {
 		List<RowList.Row> rows = new ArrayList<>();
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.help").withStyle(ChatFormatting.GRAY), null,
-			Component.translatable("controlmobspawns.gui.nbt_proportions.hint")));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.nbt_proportions.limit").withStyle(ChatFormatting.GOLD), null,
-			Component.translatable("controlmobspawns.gui.nbt_proportions.limit.hint")));
 		Map<String, Double> totals = new LinkedHashMap<>();
 		for (CmsConfig.NbtProportion proportion : settings.nbtProportions) {
 			totals.merge(proportion.path, proportion.percent, Double::sum);
@@ -46,21 +50,23 @@ public class NbtProportionsScreen extends CmsScreen {
 					.withStyle(ChatFormatting.RED)));
 			}
 		});
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.nbt_proportions.columns").withStyle(ChatFormatting.GRAY)));
+		if (settings.nbtProportions.isEmpty()) {
+			rows.add(RowList.note(Component.translatable("controlmobspawns.gui.nbt.empty")));
+		}
 		for (CmsConfig.NbtProportion proportion : List.copyOf(settings.nbtProportions)) {
-			rows.add(RowList.row(Component.empty(),
-				autocomplete(Widgets.textBox(proportion.path, 120, Component.translatable("controlmobspawns.gui.nbt.path"), NbtValidation::isPath,
-					value -> proportion.path = value), () -> NbtSuggestions.paths(entity)),
-				NbtValidation.pickerButton(this, session, entity, (path, value) -> {
+			EditBox percent = Widgets.percentBox(proportion.percent, 45, Component.translatable("controlmobspawns.gui.nbt.percent"), value -> proportion.percent = value);
+			percent.setHint(Component.literal("%").withStyle(ChatFormatting.DARK_GRAY));
+			rows.add(RowList.row(Component.empty())
+				.add(NbtValidation.pathBox(this, entity, proportion.path, 130, value -> proportion.path = value))
+				.hover(NbtValidation.pickerButton(this, session, entity, (path, value) -> {
 					proportion.path = path;
 					if (value != null) {
 						proportion.value = value;
 					}
-				}),
-				autocomplete(Widgets.textBox(proportion.value, 80, Component.translatable("controlmobspawns.gui.nbt.value"), NbtValidation::isValue,
-					value -> proportion.value = value), () -> NbtSuggestions.values(entity, proportion.path)),
-				Widgets.percentBox(proportion.percent, 45, Component.translatable("controlmobspawns.gui.nbt.percent"), value -> proportion.percent = value),
-				Widgets.button(Component.literal("✕").withStyle(ChatFormatting.RED), 20, Component.translatable("controlmobspawns.gui.remove"), button -> {
+				}))
+				.add(NbtValidation.valueBox(this, entity, proportion.value, 90, () -> proportion.path, value -> proportion.value = value))
+				.add(percent)
+				.hover(Widgets.button(Component.literal("✕").withStyle(ChatFormatting.RED), 20, Component.translatable("controlmobspawns.gui.remove"), button -> {
 					settings.nbtProportions.remove(proportion);
 					refresh();
 				})));

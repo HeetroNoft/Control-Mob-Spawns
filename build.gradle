@@ -42,7 +42,6 @@ dependencies {
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-	implementation "maven.modrinth:yacl:${project.yacl_version}"
 	implementation "maven.modrinth:modmenu:${project.modmenu_version}"
 }
 

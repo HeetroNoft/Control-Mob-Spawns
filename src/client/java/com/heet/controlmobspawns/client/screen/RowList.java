@@ -14,11 +14,15 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
-/** A scrolling list of rows: an optional icon, a label, and widgets aligned to the right. */
+/**
+ * A scrolling list of borderless rows: an optional icon, a label with an optional ⓘ, and widgets
+ * on the right. Hover-only widgets keep their place when hidden so that nothing moves.
+ */
 public class RowList extends ContainerObjectSelectionList<RowList.Row> {
 	private static final int ROW_HEIGHT = 24;
 	private static final int GAP = 4;
 	private static final int TOOLTIP_WIDTH = 250;
+	private static final String INFO = "ⓘ";
 
 	public RowList(Minecraft minecraft, int width) {
 		super(minecraft, width, 0, 0, ROW_HEIGHT);
@@ -30,36 +34,76 @@ public class RowList extends ContainerObjectSelectionList<RowList.Row> {
 		setScrollAmount(scroll);
 	}
 
+	/** The row width for a screen width, shared with the toolbars aligned on the rows. */
+	public static int rowWidth(int screenWidth) {
+		return Math.min(screenWidth - 40, 460);
+	}
+
 	@Override
 	public int getRowWidth() {
-		return Math.min(width - 40, 460);
+		return rowWidth(width);
+	}
+
+	public static Row row(Component label) {
+		return new Row(label, false);
+	}
+
+	/** A gray line of text, for column names or notes. */
+	public static Row note(Component text) {
+		return new Row(text.copy().withStyle(ChatFormatting.GRAY), false);
 	}
 
 	public static Row header(Component text) {
-		return new Row(text.copy().withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD), null, null, List.of(), true);
-	}
-
-	public static Row row(Component label, AbstractWidget... widgets) {
-		return new Row(label, null, null, List.of(widgets), false);
-	}
-
-	public static Row row(Component label, @Nullable ItemStack icon, @Nullable Component hint, AbstractWidget... widgets) {
-		return new Row(label, icon, hint, List.of(widgets), false);
+		return new Row(text.copy().withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD), true);
 	}
 
 	public static class Row extends ContainerObjectSelectionList.Entry<Row> {
-		private final Component label;
-		private final @Nullable ItemStack icon;
-		private final @Nullable Component hint;
-		private final List<AbstractWidget> widgets;
-		private final boolean header;
+		private record Slot(AbstractWidget widget, boolean hoverOnly) {
+		}
 
-		Row(Component label, @Nullable ItemStack icon, @Nullable Component hint, List<AbstractWidget> widgets, boolean header) {
+		private final Component label;
+		private final boolean header;
+		private final List<Slot> slots = new ArrayList<>();
+		private @Nullable ItemStack icon;
+		private @Nullable Component info;
+		private @Nullable Component rest;
+
+		Row(Component label, boolean header) {
 			this.label = label;
-			this.icon = icon;
-			this.hint = hint;
-			this.widgets = new ArrayList<>(widgets);
 			this.header = header;
+		}
+
+		public Component label() {
+			return label;
+		}
+
+		public Row icon(@Nullable ItemStack stack) {
+			this.icon = stack;
+			return this;
+		}
+
+		/** An explanation shown when hovering the ⓘ after the label. */
+		public Row info(@Nullable Component text) {
+			this.info = text;
+			return this;
+		}
+
+		/** Text shown on the right while the row is not hovered, in place of the hover-only widgets. */
+		public Row rest(@Nullable Component text) {
+			this.rest = text;
+			return this;
+		}
+
+		/** Adds a widget that is always visible; widgets are laid out left to right. */
+		public Row add(AbstractWidget widget) {
+			slots.add(new Slot(widget, false));
+			return this;
+		}
+
+		/** Adds a widget that is only visible while the row is hovered or one of its widgets has focus. */
+		public Row hover(AbstractWidget widget) {
+			slots.add(new Slot(widget, true));
+			return this;
 		}
 
 		@Override
@@ -68,39 +112,56 @@ public class RowList extends ContainerObjectSelectionList<RowList.Row> {
 			int textY = getContentYMiddle() - font.lineHeight / 2;
 			if (header) {
 				graphics.centeredText(font, label, getContentXMiddle(), textY, -1);
+				if (info != null) {
+					extractInfo(graphics, font, getContentXMiddle() + font.width(label) / 2 + 4, textY, mouseX, mouseY);
+				}
 				return;
 			}
+			boolean showHover = hovered || slots.stream().anyMatch(slot -> slot.hoverOnly() && slot.widget().isFocused());
 			int right = getContentRight();
-			for (int i = widgets.size() - 1; i >= 0; i--) {
-				AbstractWidget widget = widgets.get(i);
+			for (int i = slots.size() - 1; i >= 0; i--) {
+				AbstractWidget widget = slots.get(i).widget();
 				widget.setPosition(right - widget.getWidth(), getContentYMiddle() - widget.getHeight() / 2);
+				widget.visible = !slots.get(i).hoverOnly() || showHover;
 				widget.extractRenderState(graphics, mouseX, mouseY, a);
 				right -= widget.getWidth() + GAP;
 			}
+			if (!showHover && rest != null) {
+				graphics.text(font, rest, getContentRight() - font.width(rest), textY, -1);
+				right = Math.min(right, getContentRight() - font.width(rest) - GAP);
+			}
 			int x = getContentX();
-			if (icon != null) {
+			if (icon != null && !icon.isEmpty()) {
 				graphics.item(icon, x, getContentYMiddle() - 8);
 				x += 20;
 			}
-			int available = right - x;
+			int available = right - x - (info != null ? font.width(INFO) + 4 : 0);
 			String text = label.getString();
 			if (font.width(text) > available) {
 				text = font.plainSubstrByWidth(text, Math.max(0, available - font.width("…"))) + "…";
 			}
 			graphics.text(font, Component.literal(text).withStyle(label.getStyle()), x, textY, -1);
-			if (hint != null && hovered && mouseX >= x && mouseX < right) {
-				graphics.setTooltipForNextFrame(font, font.split(hint, TOOLTIP_WIDTH), mouseX, mouseY);
+			if (info != null) {
+				extractInfo(graphics, font, x + font.width(text) + 4, textY, mouseX, mouseY);
+			}
+		}
+
+		private void extractInfo(GuiGraphicsExtractor graphics, Font font, int x, int y, int mouseX, int mouseY) {
+			boolean over = mouseX >= x - 1 && mouseX < x + font.width(INFO) + 1 && mouseY >= y - 2 && mouseY < y + font.lineHeight + 2;
+			graphics.text(font, INFO, x, y, over ? 0xFFFFFFFF : 0xFF808080);
+			if (over) {
+				graphics.setTooltipForNextFrame(font, font.split(info, TOOLTIP_WIDTH), mouseX, mouseY);
 			}
 		}
 
 		@Override
 		public List<? extends GuiEventListener> children() {
-			return widgets;
+			return slots.stream().map(Slot::widget).toList();
 		}
 
 		@Override
 		public List<? extends NarratableEntry> narratables() {
-			return widgets;
+			return slots.stream().map(Slot::widget).toList();
 		}
 	}
 }

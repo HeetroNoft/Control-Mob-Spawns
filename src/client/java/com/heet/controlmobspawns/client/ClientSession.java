@@ -22,6 +22,8 @@ public final class ClientSession {
 	public final List<String> dimensions;
 	public final List<String> biomes;
 	public final List<String> biomeTags;
+	/** The configuration as last saved, to tell whether there are unsaved changes. */
+	private String savedJson;
 
 	private ClientSession(Scope scope, CmsConfig config, boolean remote, List<String> dimensions, List<String> biomes, List<String> biomeTags) {
 		this.scope = scope;
@@ -30,6 +32,7 @@ public final class ClientSession {
 		this.dimensions = dimensions;
 		this.biomes = biomes;
 		this.biomeTags = biomeTags;
+		this.savedJson = normalizedJson(config);
 	}
 
 	public static ClientSession local() {
@@ -42,7 +45,19 @@ public final class ClientSession {
 		return new ClientSession(scope, ConfigManager.fromJsonString(json), true, sync.dimensions(), sync.biomes(), sync.biomeTags());
 	}
 
+	public boolean isDirty() {
+		return !normalizedJson(config).equals(savedJson);
+	}
+
+	/** Default-only mob entries are created by simply opening a mob's settings: they are not changes. */
+	private static String normalizedJson(CmsConfig config) {
+		CmsConfig copy = ConfigManager.copy(config);
+		copy.prune();
+		return ConfigManager.toJsonString(copy);
+	}
+
 	public void save() {
+		savedJson = normalizedJson(config);
 		CmsConfig copy = ConfigManager.copy(config);
 		if (remote) {
 			ClientPlayNetworking.send(new CmsPayloads.Save(scope == Scope.WORLD, ConfigManager.toJsonString(copy)));

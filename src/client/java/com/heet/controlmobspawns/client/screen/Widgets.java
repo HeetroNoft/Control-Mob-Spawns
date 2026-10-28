@@ -7,8 +7,10 @@ import java.util.function.Predicate;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.StringWidget;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
@@ -17,6 +19,7 @@ import org.jspecify.annotations.Nullable;
 public final class Widgets {
 	private static final int VALID_COLOR = 0xFFE0E0E0;
 	private static final int INVALID_COLOR = 0xFFFF5555;
+	private static final int MODIFIED_COLOR = 0xFFFFFF55;
 
 	private Widgets() {
 	}
@@ -37,6 +40,57 @@ public final class Widgets {
 		return CycleButton.booleanBuilder(on.copy().withStyle(ChatFormatting.GREEN), off.copy().withStyle(ChatFormatting.RED), value)
 			.displayOnlyValue()
 			.create(0, 0, width, 20, Component.empty(), (button, newValue) -> onChange.accept(newValue));
+	}
+
+	/** A ⓘ showing an explanation when hovered, for toolbars. */
+	public static StringWidget info(Component text) {
+		StringWidget widget = new StringWidget(Component.literal("ⓘ").withStyle(ChatFormatting.GRAY), Minecraft.getInstance().font);
+		widget.setTooltip(Tooltip.create(text));
+		return widget;
+	}
+
+	/** A bare check box, its label being the row's. */
+	public static Checkbox checkbox(boolean value, Consumer<Boolean> onChange) {
+		return Checkbox.builder(Component.empty(), Minecraft.getInstance().font)
+			.selected(value)
+			.onValueChange((box, selected) -> onChange.accept(selected))
+			.build();
+	}
+
+	/** A check box with a short label, for toolbars. */
+	public static Checkbox checkbox(Component label, boolean value, Consumer<Boolean> onChange) {
+		return Checkbox.builder(label.copy().withStyle(ChatFormatting.GRAY), Minecraft.getInstance().font)
+			.selected(value)
+			.onValueChange((box, selected) -> onChange.accept(selected))
+			.build();
+	}
+
+	/**
+	 * An integer box compared with a vanilla value: the text is yellow while it differs. Reports
+	 * null when the value is back to vanilla.
+	 */
+	public static EditBox vanillaIntBox(int value, int vanilla, int width, Component narration, Consumer<@Nullable Integer> onChange) {
+		EditBox box = new EditBox(Minecraft.getInstance().font, width, 18, narration);
+		box.setValue(Integer.toString(value));
+		Consumer<String> recolor = text -> {
+			Integer parsed = parseInt(text);
+			box.setTextColor(parsed == null || parsed < 0 ? INVALID_COLOR : parsed == vanilla ? VALID_COLOR : MODIFIED_COLOR);
+		};
+		recolor.accept(box.getValue());
+		box.setResponder(text -> {
+			recolor.accept(text);
+			Integer parsed = parseInt(text);
+			if (parsed != null && parsed >= 0) {
+				onChange.accept(parsed == vanilla ? null : parsed);
+			}
+		});
+		return box;
+	}
+
+	/** The ↺ button putting a box back to its vanilla value. */
+	public static Button resetButton(EditBox box, int vanilla) {
+		return button(Component.literal("↺"), 20, Component.translatable("controlmobspawns.gui.reset", vanilla),
+			button -> box.setValue(Integer.toString(vanilla)));
 	}
 
 	public static CycleButton<Boolean> onOff(boolean value, int width, Consumer<Boolean> onChange) {

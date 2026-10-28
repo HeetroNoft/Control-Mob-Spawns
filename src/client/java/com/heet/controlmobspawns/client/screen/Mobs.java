@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -39,6 +40,11 @@ public final class Mobs {
 
 	public static Component name(EntityType<?> type) {
 		return type.getDescription();
+	}
+
+	/** The mob's name, in red when it is banned. */
+	public static Component label(EntityType<?> type, boolean banned) {
+		return banned ? name(type).copy().withStyle(ChatFormatting.RED) : name(type);
 	}
 
 	/**
