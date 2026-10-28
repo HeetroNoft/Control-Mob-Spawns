@@ -24,7 +24,7 @@ public class ModMenuIntegration implements ModMenuApi {
 				Component.translatable("controlmobspawns.gui.yacl_missing"));
 		}
 		if (minecraft.level == null) {
-			return ConfigScreens.create(parent, ClientSession.local());
+			return ConfigScreens.create(parent, ClientSession.local(), null);
 		}
 		return new HomeScreen(parent);
 	}

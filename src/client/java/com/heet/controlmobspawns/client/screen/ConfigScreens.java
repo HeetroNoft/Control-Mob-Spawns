@@ -1,8 +1,11 @@
 package com.heet.controlmobspawns.client.screen;
 
 import com.heet.controlmobspawns.client.ClientSession;
+import com.heet.controlmobspawns.client.ControlMobSpawnsClient;
 import com.heet.controlmobspawns.config.CmsConfig;
+import com.heet.controlmobspawns.config.RuntimeConfig;
 import com.heet.controlmobspawns.mixin.MobCategoryAccessor;
+import com.heet.controlmobspawns.network.CmsPayloads;
 import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
@@ -12,20 +15,71 @@ import dev.isxander.yacl3.api.YetAnotherConfigLib;
 import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerSliderControllerBuilder;
 import dev.isxander.yacl3.api.controller.TickBoxControllerBuilder;
+import dev.isxander.yacl3.gui.YACLScreen;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
+import org.jspecify.annotations.Nullable;
 
 /** The YACL screen with the simple settings, and buttons leading to the custom screens. */
 public final class ConfigScreens {
 	private ConfigScreens() {
 	}
 
-	public static Screen create(Screen parent, ClientSession session) {
+	/** Opens the screen; in a world the mob counts are fetched first for the "Current mobs" tab. */
+	public static void open(Screen parent, ClientSession session) {
+		if (!session.remote) {
+			Minecraft.getInstance().gui.setScreen(create(parent, session, null));
+			return;
+		}
+		showWithNextCounts(parent, session, 0);
+		ClientPlayNetworking.send(new CmsPayloads.RequestMobCounts());
+	}
+
+	/** Builds and shows the screen on the given tab as soon as the server sends the mob counts. */
+	private static void showWithNextCounts(Screen parent, ClientSession session, int tab) {
+		ControlMobSpawnsClient.setMobCountListener(counts -> {
+			ControlMobSpawnsClient.setMobCountListener(null);
+			Screen screen = create(parent, session, counts);
+			Minecraft.getInstance().gui.setScreen(screen);
+			if (screen instanceof YACLScreen yacl && tab > 0) {
+				yacl.tabNavigationBar.selectTab(tab, false);
+			}
+		});
+	}
+
+	/**
+	 * Prepares a rebuild on the "Current mobs" tab: values changed but not saved yet are written
+	 * into the session first, so the rebuilt screen keeps them.
+	 */
+	private static void rebuildOnNextCounts(YACLScreen screen, Screen parent, ClientSession session) {
+		for (ConfigCategory category : screen.config.categories()) {
+			for (OptionGroup group : category.groups()) {
+				for (Option<?> option : group.options()) {
+					if (option.changed()) {
+						option.applyValue();
+					}
+				}
+			}
+		}
+		showWithNextCounts(parent, session, screen.config.categories().size() - 1);
+	}
+
+	public static Screen create(Screen parent, ClientSession session, @Nullable List<CmsPayloads.MobCount> counts) {
 		CmsConfig config = session.config;
 		Component title = Component.translatable("controlmobspawns.title").append(" — ")
 			.append(Component.translatable(session.scope == ClientSession.Scope.WORLD ? "controlmobspawns.gui.scope.world" : "controlmobspawns.gui.scope.global"));
@@ -34,9 +88,6 @@ public final class ConfigScreens {
 		OptionGroup.Builder screens = OptionGroup.createBuilder().name(Component.translatable("controlmobspawns.config.screens"))
 			.option(openButton("mobs", screen -> new MobListScreen(screen, session)))
 			.option(openButton("biome_spawns", screen -> new BiomeSpawnsScreen(screen, session)));
-		if (session.remote) {
-			screens.option(openButton("current", screen -> new CurrentMobsScreen(screen, session)));
-		}
 		general.group(screens.build());
 		general.group(OptionGroup.createBuilder().name(Component.translatable("controlmobspawns.config.coverage"))
 			.option(bool("coverage.modded", true, () -> config.coverage.moddedMobs, value -> config.coverage.moddedMobs = value))
@@ -96,14 +147,93 @@ public final class ConfigScreens {
 				.build());
 		}
 
-		return YetAnotherConfigLib.createBuilder()
+		YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder()
 			.title(title)
 			.category(general.build())
 			.category(caps.build())
-			.category(despawn.build())
-			.save(session::save)
-			.build()
-			.generateScreen(parent);
+			.category(despawn.build());
+		if (counts != null) {
+			builder.category(currentMobs(parent, session, counts));
+		}
+		return builder.save(session::save).build().generateScreen(parent);
+	}
+
+	/** One group per mob present in the world, most frequent first. */
+	private static ConfigCategory currentMobs(Screen parent, ClientSession session, List<CmsPayloads.MobCount> counts) {
+		Map<String, Map<String, Integer>> perEntity = new LinkedHashMap<>();
+		Map<String, Integer> totals = new HashMap<>();
+		for (CmsPayloads.MobCount count : counts) {
+			perEntity.computeIfAbsent(count.entity(), key -> new TreeMap<>()).merge(count.dimension(), count.count(), Integer::sum);
+			totals.merge(count.entity(), count.count(), Integer::sum);
+		}
+		int total = totals.values().stream().mapToInt(Integer::intValue).sum();
+
+		ConfigCategory.Builder category = ConfigCategory.createBuilder()
+			.name(Component.translatable("controlmobspawns.config.current"))
+			.tooltip(Component.translatable("controlmobspawns.config.current.desc"));
+		category.option(ButtonOption.createBuilder()
+			.name(Component.translatable("controlmobspawns.config.current.total", total))
+			.description(OptionDescription.of(Component.translatable("controlmobspawns.config.current.refresh.desc")))
+			.text(Component.translatable("controlmobspawns.gui.refresh"))
+			.action(screen -> {
+				rebuildOnNextCounts(screen, parent, session);
+				ClientPlayNetworking.send(new CmsPayloads.RequestMobCounts());
+			})
+			.build());
+
+		perEntity.keySet().stream()
+			.sorted(Comparator.comparing((String entity) -> totals.get(entity)).reversed())
+			.forEach(entity -> {
+				EntityType<?> type = RuntimeConfig.entityType(entity);
+				if (type == null) {
+					return;
+				}
+				Map<String, Integer> dimensions = perEntity.get(entity);
+				MutableComponent description = Component.literal(entity).withStyle(ChatFormatting.GRAY);
+				dimensions.forEach((dimension, count) -> description.append("\n").append(Component.literal(dimension + " : " + count).withStyle(ChatFormatting.WHITE)));
+				OptionGroup.Builder group = OptionGroup.createBuilder()
+					.name(Component.translatable("controlmobspawns.gui.current.row", Mobs.name(type), totals.get(entity)))
+					.description(OptionDescription.of(description))
+					.collapsed(true);
+				group.option(Option.<Boolean>createBuilder()
+					.name(Component.translatable("controlmobspawns.gui.banned"))
+					.description(OptionDescription.of(Component.translatable("controlmobspawns.config.current.banned.desc")))
+					.binding(false, () -> isBanned(session, entity), value -> session.config.getOrCreateMob(entity).banned = value)
+					.controller(TickBoxControllerBuilder::create)
+					.build());
+				if (dimensions.size() > 1) {
+					group.option(despawnButton(parent, session, entity, "", totals.get(entity)));
+				}
+				dimensions.forEach((dimension, count) -> group.option(despawnButton(parent, session, entity, dimension, count)));
+				group.option(ButtonOption.createBuilder()
+					.name(Component.translatable("controlmobspawns.gui.mob.settings"))
+					.description(OptionDescription.of(Component.translatable("controlmobspawns.config.open.mobs.desc")))
+					.text(Component.translatable("controlmobspawns.config.open"))
+					.action(screen -> Minecraft.getInstance().gui.setScreen(new MobDetailScreen(screen, session, type)))
+					.build());
+				category.group(group.build());
+			});
+		return category.build();
+	}
+
+	private static boolean isBanned(ClientSession session, String entity) {
+		CmsConfig.MobSettings settings = session.config.mobs.get(entity);
+		return settings != null && settings.banned;
+	}
+
+	/** One-off removal; the server answers with the new counts and the tab is rebuilt. */
+	private static ButtonOption despawnButton(Screen parent, ClientSession session, String entity, String dimension, int count) {
+		Component where = dimension.isEmpty() ? Component.translatable("controlmobspawns.gui.current.all_dimensions") : Component.literal(dimension);
+		return ButtonOption.createBuilder()
+			.name(Component.translatable("controlmobspawns.config.current.despawn", where, count))
+			.description(OptionDescription.of(Component.translatable("controlmobspawns.gui.current.despawn_all.hint")))
+			.text(Component.translatable("controlmobspawns.gui.current.despawn_all"))
+			.action(screen -> {
+				// The server answers a despawn with the new counts.
+				rebuildOnNextCounts(screen, parent, session);
+				ClientPlayNetworking.send(new CmsPayloads.DespawnAll(entity, dimension));
+			})
+			.build();
 	}
 
 	private static CmsConfig.DespawnDistance distance(CmsConfig config, String category) {

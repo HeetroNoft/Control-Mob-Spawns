@@ -71,7 +71,7 @@ public class HomeScreen extends Screen {
 
 	private void open(ClientSession.Scope scope) {
 		if (sync != null) {
-			minecraft.gui.setScreen(ConfigScreens.create(parent, ClientSession.remote(scope, sync)));
+			ConfigScreens.open(parent, ClientSession.remote(scope, sync));
 		}
 	}
 
