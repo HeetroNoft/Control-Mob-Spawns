@@ -8,7 +8,10 @@
 		"Heet"
 	],
 	"license": "MIT",
-	"icon": "assets/controlmobspawns/icon.png",
+	"icon": {
+		"64": "assets/controlmobspawns/logo-64.png",
+		"128": "assets/controlmobspawns/logo-128.png"
+	},
 	"environment": "*",
 	"entrypoints": {
 		"main": [
