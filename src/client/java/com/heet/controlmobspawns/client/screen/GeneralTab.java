@@ -34,11 +34,13 @@ class GeneralTab implements MainConfigScreen.Tab {
 		sections.add(toggle("despawn.force_named", () -> config.despawn.forceIncludesNamed, value -> config.despawn.forceIncludesNamed = value));
 
 		sections.header(Component.translatable("controlmobspawns.config.server"), null);
-		EditBox permission = Widgets.vanillaIntBox(config.permissionLevel, 2, 40, Component.translatable("controlmobspawns.config.permission_level"),
-			value -> config.permissionLevel = value == null ? 2 : Math.min(4, value));
+		IntSlider permission = new IntSlider(130, 0, 4, config.permissionLevel,
+			level -> Component.translatable("controlmobspawns.permission_level." + level), level -> config.permissionLevel = level);
+		IconButton resetPermission = new IconButton(IconButton.RESET, Component.translatable("controlmobspawns.gui.reset", 2), () -> permission.setIntValue(2));
+		resetPermission.setTooltip(Tooltip.create(Component.translatable("controlmobspawns.gui.reset", 2)));
 		sections.add(RowList.row(Component.translatable("controlmobspawns.config.permission_level"))
 			.info(Component.translatable("controlmobspawns.config.permission_level.desc"))
-			.add(permission).hover(Widgets.resetButton(permission, 2)).keepHover());
+			.add(permission).hover(resetPermission).keepHover());
 
 		sections.header(Component.translatable("controlmobspawns.config.caps"), Component.translatable("controlmobspawns.config.caps.desc"));
 		for (MobCategory category : categories()) {

@@ -196,5 +196,10 @@
 	"controlmobspawns.config.despawn_distances.desc": "First box: mobs farther than this from every player despawn immediately. Second box: beyond this distance, idle mobs can despawn at random.",
 	"controlmobspawns.config.despawn_distances.option": "Vanilla: %s (immediate) and %s (random) blocks",
 	"controlmobspawns.gui.mob.despawn_now.hint": "Removes the mobs of this type now, in all dimensions or in one. One-off action for testing: it does not change the configuration.",
-	"controlmobspawns.gui.edit_count": "Edit (%s)"
+	"controlmobspawns.gui.edit_count": "Edit (%s)",
+	"controlmobspawns.permission_level.0": "0 · Everyone",
+	"controlmobspawns.permission_level.1": "1 · Moderators",
+	"controlmobspawns.permission_level.2": "2 · Game masters",
+	"controlmobspawns.permission_level.3": "3 · Admins",
+	"controlmobspawns.permission_level.4": "4 · Owners"
 }

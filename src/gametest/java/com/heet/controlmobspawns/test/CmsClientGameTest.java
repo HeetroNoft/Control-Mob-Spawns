@@ -84,7 +84,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
 		context.waitTicks(3);
 		context.takeScreenshot("cms-01-general-tab");
-		context.getInput().typeChars("Monst");
+		context.getInput().typeChars("Perm");
 		context.getInput().setCursorPos(500, 208);
 		context.waitTicks(3);
 		context.takeScreenshot("cms-01b-general-reset-hover");
