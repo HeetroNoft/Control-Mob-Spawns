@@ -67,6 +67,7 @@ public class RowList extends ContainerObjectSelectionList<RowList.Row> {
 		private @Nullable ItemStack icon;
 		private @Nullable Component info;
 		private @Nullable Component rest;
+		private boolean keepHover;
 
 		Row(Component label, boolean header) {
 			this.label = label;
@@ -94,6 +95,15 @@ public class RowList extends ContainerObjectSelectionList<RowList.Row> {
 			return this;
 		}
 
+		/**
+		 * Keeps a single hover-only action hidden until hover. By default a row with only one
+		 * hover-only action shows it all the time: hover only declutters rows with several actions.
+		 */
+		public Row keepHover() {
+			this.keepHover = true;
+			return this;
+		}
+
 		/** Adds a widget that is always visible; widgets are laid out left to right. */
 		public Row add(AbstractWidget widget) {
 			slots.add(new Slot(widget, false));
@@ -117,7 +127,8 @@ public class RowList extends ContainerObjectSelectionList<RowList.Row> {
 				}
 				return;
 			}
-			boolean showHover = hovered || slots.stream().anyMatch(slot -> slot.hoverOnly() && slot.widget().isFocused());
+			boolean singleAction = !keepHover && slots.stream().filter(Slot::hoverOnly).count() == 1;
+			boolean showHover = singleAction || hovered || slots.stream().anyMatch(slot -> slot.hoverOnly() && slot.widget().isFocused());
 			int right = getContentRight();
 			for (int i = slots.size() - 1; i >= 0; i--) {
 				AbstractWidget widget = slots.get(i).widget();

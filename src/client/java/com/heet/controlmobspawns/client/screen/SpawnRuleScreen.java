@@ -52,8 +52,7 @@ public class SpawnRuleScreen extends CmsScreen {
 		int blockCount = rule.blocksBelow.size();
 		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.rule.blocks_below"))
 			.info(Component.translatable("controlmobspawns.gui.rule.blocks_below.hint"))
-			.rest(MobDetailScreen.value(blockCount == 0 ? Component.translatable("controlmobspawns.gui.any") : Component.literal(Integer.toString(blockCount)), blockCount > 0))
-			.hover(Widgets.button(Component.translatable("controlmobspawns.gui.edit"), 80,
+			.hover(Widgets.button(Widgets.editLabel(blockCount), 80,
 				button -> minecraft.gui.setScreen(new IdListScreen(this, session, Component.translatable("controlmobspawns.gui.rule.blocks_below"),
 					rule.blocksBelow, blocks)))));
 
@@ -86,17 +85,12 @@ public class SpawnRuleScreen extends CmsScreen {
 		return rows;
 	}
 
-	/** A min/max row: "0 – 7" at rest, the two boxes on hover. */
+	/** A min/max row: two boxes, empty meaning no limit. */
 	private RowList.Row range(String key, @Nullable Integer min, @Nullable Integer max, Consumer<@Nullable Integer> setMin, Consumer<@Nullable Integer> setMax) {
-		boolean limited = min != null || max != null;
-		Component text = limited
-			? Component.literal((min == null ? "…" : min.toString()) + " – " + (max == null ? "…" : max.toString()))
-			: Component.translatable("controlmobspawns.gui.any");
 		return RowList.row(Component.translatable("controlmobspawns.gui.rule." + key))
 			.info(Component.translatable("controlmobspawns.gui.rule.range.hint"))
-			.rest(MobDetailScreen.value(text, limited))
-			.hover(Widgets.optionalIntBox(min, 50, Component.translatable("controlmobspawns.gui.min"), setMin))
-			.hover(Widgets.optionalIntBox(max, 50, Component.translatable("controlmobspawns.gui.max"), setMax));
+			.add(Widgets.optionalIntBox(min, 50, Component.translatable("controlmobspawns.gui.min"), setMin))
+			.add(Widgets.optionalIntBox(max, 50, Component.translatable("controlmobspawns.gui.max"), setMax));
 	}
 
 	private static Component timeName(CmsConfig.TimeOfDay time) {

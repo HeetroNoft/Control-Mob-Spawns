@@ -116,11 +116,10 @@ public class MobDetailScreen extends CmsScreen {
 		return rows;
 	}
 
-	/** A row opening a list editor; at rest the number of entries. */
+	/** A row opening a list editor; the button shows the number of entries. */
 	private RowList.Row listRow(Component label, @Nullable Component info, int count, Supplier<Screen> screen) {
 		return RowList.row(label).info(info)
-			.rest(value(count == 0 ? Component.translatable("controlmobspawns.gui.none") : Component.literal(Integer.toString(count)), count > 0))
-			.hover(Widgets.button(Component.translatable("controlmobspawns.gui.edit"), 80, button -> minecraft.gui.setScreen(screen.get())));
+			.hover(Widgets.button(Widgets.editLabel(count), 80, button -> minecraft.gui.setScreen(screen.get())));
 	}
 
 	private RowList.Row despawnRow(Component where, String dimension, int count) {

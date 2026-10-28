@@ -38,7 +38,7 @@ class GeneralTab implements MainConfigScreen.Tab {
 			value -> config.permissionLevel = value == null ? 2 : Math.min(4, value));
 		sections.add(RowList.row(Component.translatable("controlmobspawns.config.permission_level"))
 			.info(Component.translatable("controlmobspawns.config.permission_level.desc"))
-			.add(permission).hover(Widgets.resetButton(permission, 2)));
+			.add(permission).hover(Widgets.resetButton(permission, 2)).keepHover());
 
 		sections.header(Component.translatable("controlmobspawns.config.caps"), Component.translatable("controlmobspawns.config.caps.desc"));
 		for (MobCategory category : categories()) {
@@ -53,7 +53,7 @@ class GeneralTab implements MainConfigScreen.Tab {
 			});
 			sections.add(RowList.row(categoryName(category))
 				.info(Component.translatable("controlmobspawns.config.caps.option", vanilla))
-				.add(box).hover(Widgets.resetButton(box, vanilla)));
+				.add(box).hover(Widgets.resetButton(box, vanilla)).keepHover());
 		}
 
 		sections.header(Component.translatable("controlmobspawns.config.despawn_distances"), Component.translatable("controlmobspawns.config.despawn_distances.desc"));
@@ -78,12 +78,19 @@ class GeneralTab implements MainConfigScreen.Tab {
 			sections.add(RowList.row(categoryName(category))
 				.info(Component.translatable("controlmobspawns.config.despawn_distances.option", vanillaInstant, vanillaRandom))
 				.add(instant).add(random)
-				.hover(Widgets.button(Component.literal("↺"), 20, Component.translatable("controlmobspawns.gui.reset_vanilla"), button -> {
-					instant.setValue(Integer.toString(vanillaInstant));
-					random.setValue(Integer.toString(vanillaRandom));
-				})));
+				.hover(resetBoth(instant, vanillaInstant, random, vanillaRandom))
+				.keepHover());
 		}
 		return sections.rows;
+	}
+
+	private static IconButton resetBoth(EditBox first, int firstVanilla, EditBox second, int secondVanilla) {
+		IconButton button = new IconButton(IconButton.RESET, Component.translatable("controlmobspawns.gui.reset_vanilla"), () -> {
+			first.setValue(Integer.toString(firstVanilla));
+			second.setValue(Integer.toString(secondVanilla));
+		});
+		button.setTooltip(Tooltip.create(Component.translatable("controlmobspawns.gui.reset_vanilla")));
+		return button;
 	}
 
 	private static RowList.Row toggle(String key, Supplier<Boolean> getter, Consumer<Boolean> setter) {

@@ -84,6 +84,10 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
 		context.waitTicks(3);
 		context.takeScreenshot("cms-01-general-tab");
+		context.getInput().typeChars("Monst");
+		context.getInput().setCursorPos(500, 208);
+		context.waitTicks(3);
+		context.takeScreenshot("cms-01b-general-reset-hover");
 		ClientSession session = context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).session());
 		check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).tabCount()) == 3, "no Current mobs tab from the title screen");
 		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(1));

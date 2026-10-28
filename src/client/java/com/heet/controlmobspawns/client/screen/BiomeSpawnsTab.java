@@ -58,7 +58,9 @@ class BiomeSpawnsTab implements MainConfigScreen.Tab {
 				.hover(Widgets.button(Component.literal("✕").withStyle(ChatFormatting.RED), 20, Component.translatable("controlmobspawns.gui.remove"), button -> {
 					spawns.remove(spawn);
 					screen.refresh();
-				})));
+				}))
+				// With the Biomes button the row has two actions, so the ✕ stays a hover action.
+				.keepHover());
 		}
 		return rows;
 	}

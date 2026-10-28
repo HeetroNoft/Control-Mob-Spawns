@@ -24,6 +24,11 @@ public final class Widgets {
 	private Widgets() {
 	}
 
+	/** "Edit", or "Edit (3)" when the list has entries. */
+	public static Component editLabel(int count) {
+		return count == 0 ? Component.translatable("controlmobspawns.gui.edit") : Component.translatable("controlmobspawns.gui.edit_count", count);
+	}
+
 	public static Button button(Component text, int width, Button.OnPress onPress) {
 		return Button.builder(text, onPress).width(width).build();
 	}
@@ -88,9 +93,11 @@ public final class Widgets {
 	}
 
 	/** The ↺ button putting a box back to its vanilla value. */
-	public static Button resetButton(EditBox box, int vanilla) {
-		return button(Component.literal("↺"), 20, Component.translatable("controlmobspawns.gui.reset", vanilla),
-			button -> box.setValue(Integer.toString(vanilla)));
+	public static IconButton resetButton(EditBox box, int vanilla) {
+		Component tooltip = Component.translatable("controlmobspawns.gui.reset", vanilla);
+		IconButton button = new IconButton(IconButton.RESET, tooltip, () -> box.setValue(Integer.toString(vanilla)));
+		button.setTooltip(Tooltip.create(tooltip));
+		return button;
 	}
 
 	public static CycleButton<Boolean> onOff(boolean value, int width, Consumer<Boolean> onChange) {
@@ -129,7 +136,7 @@ public final class Widgets {
 		EditBox box = textBox(value == null ? "" : value.toString(), width, narration,
 			text -> text.isBlank() || parseInt(text) != null,
 			text -> onChange.accept(text.isBlank() ? null : parseInt(text)));
-		box.setHint(Component.literal("—").withStyle(ChatFormatting.DARK_GRAY));
+		box.setHint(narration.copy().withStyle(ChatFormatting.DARK_GRAY));
 		return box;
 	}
 

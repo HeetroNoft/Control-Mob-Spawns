@@ -195,5 +195,6 @@
 	"controlmobspawns.config.caps.desc": "Nombre maximal de mobs de chaque catégorie autour des joueurs. Changer le taux de spawn d'un mob ne change que les mobs qui remplissent ces caps : pour avoir plus ou moins de mobs au total, changez les caps.",
 	"controlmobspawns.config.despawn_distances.desc": "Premier champ : les mobs plus loin que cette distance de tous les joueurs despawn immédiatement. Second champ : au-delà de cette distance, les mobs inactifs peuvent despawn au hasard.",
 	"controlmobspawns.config.despawn_distances.option": "Vanilla : %s (immédiat) et %s (aléatoire) blocs",
-	"controlmobspawns.gui.mob.despawn_now.hint": "Supprime maintenant les mobs de ce type, dans toutes les dimensions ou dans une seule. Action ponctuelle pour les tests : la configuration n'est pas modifiée."
+	"controlmobspawns.gui.mob.despawn_now.hint": "Supprime maintenant les mobs de ce type, dans toutes les dimensions ou dans une seule. Action ponctuelle pour les tests : la configuration n'est pas modifiée.",
+	"controlmobspawns.gui.edit_count": "Modifier (%s)"
 }
