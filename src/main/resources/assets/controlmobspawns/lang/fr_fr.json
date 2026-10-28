@@ -183,12 +183,15 @@
 	"controlmobspawns.config.current.desc": "Les mobs présents dans le monde et leur nombre, avec des raccourcis pour les bannir ou les supprimer.",
 	"controlmobspawns.config.current.total": "%s mobs dans le monde",
 	"controlmobspawns.config.current.refresh.desc": "Recompte les mobs. Les valeurs modifiées dans les autres onglets sont conservées.",
-	"controlmobspawns.config.current.banned.desc": "Bannit ce mob partout. Appliqué à l'enregistrement de la configuration.",
-	"controlmobspawns.config.current.despawn": "Despawn : %s (%s)",
 	"controlmobspawns.gui.nbt_picker.title": "Chemins NBT de %s",
 	"controlmobspawns.gui.nbt_picker.open": "Liste des chemins NBT de ce mob",
 	"controlmobspawns.gui.nbt_picker.hint": "Chemins lus sur un mob tout juste créé et sur les mobs de ce type déjà présents dans le monde, avec les valeurs rencontrées. Choisissez un chemin seul, ou un chemin avec une de ses valeurs.",
 	"controlmobspawns.gui.nbt_picker.choose_path": "Chemin",
 	"controlmobspawns.gui.nbt_picker.choose_value": "Chemin + valeur",
-	"controlmobspawns.gui.nbt_picker.world_only": "La liste des chemins NBT n'est disponible que dans un monde (le serveur la lit sur les mobs)."
+	"controlmobspawns.gui.nbt_picker.world_only": "La liste des chemins NBT n'est disponible que dans un monde (le serveur la lit sur les mobs).",
+	"controlmobspawns.config.current.despawn_current_dimension": "Despawn uniquement dans ma dimension",
+	"controlmobspawns.config.current.despawn_current_dimension.desc": "Activé : le bouton Despawn d'une ligne supprime les mobs de la dimension où vous êtes. Désactivé : il les supprime dans toutes les dimensions. Pour viser une autre dimension, utilisez ⚙ sur la ligne.",
+	"controlmobspawns.config.current.row.desc": "Survolez la ligne pour afficher ses boutons : Despawn (suppression ponctuelle, ne modifie pas la configuration), Autorisé/Banni, et ⚙ pour les réglages détaillés et le despawn par dimension.",
+	"controlmobspawns.gui.mob.despawn_now": "Despawn maintenant",
+	"controlmobspawns.gui.mob.despawn_now.row": "%s (%s)"
 }

@@ -158,7 +158,7 @@ public final class ConfigScreens {
 		return builder.save(session::save).build().generateScreen(parent);
 	}
 
-	/** One group per mob present in the world, most frequent first. */
+	/** One fixed row per mob present in the world, most frequent first, with its actions on hover. */
 	private static ConfigCategory currentMobs(Screen parent, ClientSession session, List<CmsPayloads.MobCount> counts) {
 		Map<String, Map<String, Integer>> perEntity = new LinkedHashMap<>();
 		Map<String, Integer> totals = new HashMap<>();
@@ -180,6 +180,9 @@ public final class ConfigScreens {
 				ClientPlayNetworking.send(new CmsPayloads.RequestMobCounts());
 			})
 			.build());
+		Option<Boolean> currentDimensionOnly = bool("current.despawn_current_dimension", false,
+			() -> session.config.despawn.despawnButtonCurrentDimension, value -> session.config.despawn.despawnButtonCurrentDimension = value);
+		category.option(currentDimensionOnly);
 
 		perEntity.keySet().stream()
 			.sorted(Comparator.comparing((String entity) -> totals.get(entity)).reversed())
@@ -188,30 +191,18 @@ public final class ConfigScreens {
 				if (type == null) {
 					return;
 				}
-				Map<String, Integer> dimensions = perEntity.get(entity);
 				MutableComponent description = Component.literal(entity).withStyle(ChatFormatting.GRAY);
-				dimensions.forEach((dimension, count) -> description.append("\n").append(Component.literal(dimension + " : " + count).withStyle(ChatFormatting.WHITE)));
-				OptionGroup.Builder group = OptionGroup.createBuilder()
+				perEntity.get(entity).forEach((dimension, count) ->
+					description.append("\n").append(Component.literal(dimension + " : " + count).withStyle(ChatFormatting.WHITE)));
+				description.append("\n\n").append(Component.translatable("controlmobspawns.config.current.row.desc"));
+				category.option(Option.<Boolean>createBuilder()
 					.name(Component.translatable("controlmobspawns.gui.current.row", Mobs.name(type), totals.get(entity)))
 					.description(OptionDescription.of(description))
-					.collapsed(true);
-				group.option(Option.<Boolean>createBuilder()
-					.name(Component.translatable("controlmobspawns.gui.banned"))
-					.description(OptionDescription.of(Component.translatable("controlmobspawns.config.current.banned.desc")))
 					.binding(false, () -> isBanned(session, entity), value -> session.config.getOrCreateMob(entity).banned = value)
-					.controller(TickBoxControllerBuilder::create)
+					.customController(option -> new MobRowController(option,
+						screen -> despawn(screen, parent, session, entity, currentDimensionOnly.pendingValue()),
+						screen -> Minecraft.getInstance().gui.setScreen(new MobDetailScreen(screen, session, type))))
 					.build());
-				if (dimensions.size() > 1) {
-					group.option(despawnButton(parent, session, entity, "", totals.get(entity)));
-				}
-				dimensions.forEach((dimension, count) -> group.option(despawnButton(parent, session, entity, dimension, count)));
-				group.option(ButtonOption.createBuilder()
-					.name(Component.translatable("controlmobspawns.gui.mob.settings"))
-					.description(OptionDescription.of(Component.translatable("controlmobspawns.config.open.mobs.desc")))
-					.text(Component.translatable("controlmobspawns.config.open"))
-					.action(screen -> Minecraft.getInstance().gui.setScreen(new MobDetailScreen(screen, session, type)))
-					.build());
-				category.group(group.build());
 			});
 		return category.build();
 	}
@@ -221,19 +212,12 @@ public final class ConfigScreens {
 		return settings != null && settings.banned;
 	}
 
-	/** One-off removal; the server answers with the new counts and the tab is rebuilt. */
-	private static ButtonOption despawnButton(Screen parent, ClientSession session, String entity, String dimension, int count) {
-		Component where = dimension.isEmpty() ? Component.translatable("controlmobspawns.gui.current.all_dimensions") : Component.literal(dimension);
-		return ButtonOption.createBuilder()
-			.name(Component.translatable("controlmobspawns.config.current.despawn", where, count))
-			.description(OptionDescription.of(Component.translatable("controlmobspawns.gui.current.despawn_all.hint")))
-			.text(Component.translatable("controlmobspawns.gui.current.despawn_all"))
-			.action(screen -> {
-				// The server answers a despawn with the new counts.
-				rebuildOnNextCounts(screen, parent, session);
-				ClientPlayNetworking.send(new CmsPayloads.DespawnAll(entity, dimension));
-			})
-			.build();
+	/** One-off removal in every dimension, or in the player's; the server answers with the new counts. */
+	private static void despawn(YACLScreen screen, Screen parent, ClientSession session, String entity, boolean currentDimensionOnly) {
+		Minecraft minecraft = Minecraft.getInstance();
+		String dimension = currentDimensionOnly && minecraft.level != null ? minecraft.level.dimension().identifier().toString() : "";
+		rebuildOnNextCounts(screen, parent, session);
+		ClientPlayNetworking.send(new CmsPayloads.DespawnAll(entity, dimension));
 	}
 
 	private static CmsConfig.DespawnDistance distance(CmsConfig config, String category) {

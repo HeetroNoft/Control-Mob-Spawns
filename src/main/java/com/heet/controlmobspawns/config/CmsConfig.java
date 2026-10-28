@@ -30,6 +30,8 @@ public class CmsConfig {
 		public Map<String, DespawnDistance> distances = new LinkedHashMap<>();
 		public boolean itemPickersDespawn = false;
 		public boolean forceIncludesNamed = false;
+		/** "Despawn" in the Current mobs tab acts on the player's dimension instead of all of them. */
+		public boolean despawnButtonCurrentDimension = false;
 	}
 
 	public static class DespawnDistance {

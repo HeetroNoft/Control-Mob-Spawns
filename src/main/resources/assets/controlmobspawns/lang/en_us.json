@@ -183,12 +183,15 @@
 	"controlmobspawns.config.current.desc": "Mobs currently in the world and their counts, with shortcuts to ban or remove them.",
 	"controlmobspawns.config.current.total": "%s mobs in the world",
 	"controlmobspawns.config.current.refresh.desc": "Counts the mobs again. Values changed in the other tabs are kept.",
-	"controlmobspawns.config.current.banned.desc": "Bans this mob everywhere. Applied when the configuration is saved.",
-	"controlmobspawns.config.current.despawn": "Despawn: %s (%s)",
 	"controlmobspawns.gui.nbt_picker.title": "NBT paths of %s",
 	"controlmobspawns.gui.nbt_picker.open": "List of this mob's NBT paths",
 	"controlmobspawns.gui.nbt_picker.hint": "Paths read on a newly created mob and on the mobs of this type already in the world, with the values seen. Choose a path alone, or a path with one of its values.",
 	"controlmobspawns.gui.nbt_picker.choose_path": "Path",
 	"controlmobspawns.gui.nbt_picker.choose_value": "Path + value",
-	"controlmobspawns.gui.nbt_picker.world_only": "The list of NBT paths is only available in a world (the server reads it from the mobs)."
+	"controlmobspawns.gui.nbt_picker.world_only": "The list of NBT paths is only available in a world (the server reads it from the mobs).",
+	"controlmobspawns.config.current.despawn_current_dimension": "Despawn only in my dimension",
+	"controlmobspawns.config.current.despawn_current_dimension.desc": "When on, the Despawn button of a row removes the mobs of the dimension you are in. When off, it removes them in every dimension. To target another dimension, use ⚙ on the row.",
+	"controlmobspawns.config.current.row.desc": "Hover the row to show its buttons: Despawn (one-off removal, does not change the configuration), Allowed/Banned, and ⚙ for the detailed settings and per-dimension despawn.",
+	"controlmobspawns.gui.mob.despawn_now": "Despawn now",
+	"controlmobspawns.gui.mob.despawn_now.row": "%s (%s)"
 }

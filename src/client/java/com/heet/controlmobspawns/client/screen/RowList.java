@@ -18,6 +18,7 @@ import org.jspecify.annotations.Nullable;
 public class RowList extends ContainerObjectSelectionList<RowList.Row> {
 	private static final int ROW_HEIGHT = 24;
 	private static final int GAP = 4;
+	private static final int TOOLTIP_WIDTH = 250;
 
 	public RowList(Minecraft minecraft, int width) {
 		super(minecraft, width, 0, 0, ROW_HEIGHT);
@@ -88,7 +89,7 @@ public class RowList extends ContainerObjectSelectionList<RowList.Row> {
 			}
 			graphics.text(font, Component.literal(text).withStyle(label.getStyle()), x, textY, -1);
 			if (hint != null && hovered && mouseX >= x && mouseX < right) {
-				graphics.setTooltipForNextFrame(font, hint, mouseX, mouseY);
+				graphics.setTooltipForNextFrame(font, font.split(hint, TOOLTIP_WIDTH), mouseX, mouseY);
 			}
 		}
 

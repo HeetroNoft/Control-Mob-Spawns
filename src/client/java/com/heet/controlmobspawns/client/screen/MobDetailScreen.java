@@ -1,18 +1,25 @@
 package com.heet.controlmobspawns.client.screen;
 
 import com.heet.controlmobspawns.client.ClientSession;
+import com.heet.controlmobspawns.client.ControlMobSpawnsClient;
 import com.heet.controlmobspawns.config.CmsConfig;
+import com.heet.controlmobspawns.network.CmsPayloads;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import org.jspecify.annotations.Nullable;
 
 /** The ⚙ sub-menu of a mob. */
 public class MobDetailScreen extends CmsScreen {
@@ -23,6 +30,7 @@ public class MobDetailScreen extends CmsScreen {
 
 	private final String id;
 	private final CmsConfig.MobSettings settings;
+	private @Nullable Map<String, Integer> counts;
 
 	public MobDetailScreen(Screen parent, ClientSession session, EntityType<?> type) {
 		super(parent, session, Component.translatable("controlmobspawns.gui.mob.title", Mobs.name(type)));
@@ -84,7 +92,50 @@ public class MobDetailScreen extends CmsScreen {
 			Widgets.cycle(List.of(CmsConfig.DespawnMode.values()), settings.despawn, 100,
 				mode -> Component.translatable("controlmobspawns.despawn_mode." + mode.name().toLowerCase(Locale.ROOT)),
 				mode -> settings.despawn = mode)));
+
+		if (session.remote) {
+			rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.despawn_now")));
+			if (counts == null) {
+				rows.add(RowList.row(Component.translatable("controlmobspawns.gui.loading").withStyle(ChatFormatting.GRAY)));
+			} else {
+				int total = counts.values().stream().mapToInt(Integer::intValue).sum();
+				rows.add(despawnRow(Component.translatable("controlmobspawns.gui.current.all_dimensions"), "", total));
+				counts.forEach((dimension, count) -> rows.add(despawnRow(Component.literal(dimension), dimension, count)));
+			}
+		}
 		return rows;
+	}
+
+	private RowList.Row despawnRow(Component where, String dimension, int count) {
+		return RowList.row(Component.translatable("controlmobspawns.gui.mob.despawn_now.row", where, count), null,
+			Component.translatable("controlmobspawns.gui.current.despawn_all.hint"),
+			Widgets.button(Component.translatable("controlmobspawns.gui.current.despawn_all"), 100,
+				button -> ClientPlayNetworking.send(new CmsPayloads.DespawnAll(id, dimension))));
+	}
+
+	/** Counts of this mob per dimension; the server sends them again after each despawn. */
+	@Override
+	public void added() {
+		super.added();
+		if (session.remote) {
+			ControlMobSpawnsClient.setMobCountListener(received -> {
+				Map<String, Integer> perDimension = new TreeMap<>();
+				for (CmsPayloads.MobCount count : received) {
+					if (count.entity().equals(id)) {
+						perDimension.merge(count.dimension(), count.count(), Integer::sum);
+					}
+				}
+				counts = perDimension;
+				refresh();
+			});
+			ClientPlayNetworking.send(new CmsPayloads.RequestMobCounts());
+		}
+	}
+
+	@Override
+	public void removed() {
+		super.removed();
+		ControlMobSpawnsClient.setMobCountListener(null);
 	}
 
 	private Button editButton(int count, Supplier<Screen> screen) {

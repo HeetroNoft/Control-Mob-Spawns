@@ -327,12 +327,21 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.runOnClient(minecraft -> ((YACLScreen) minecraft.gui.screen()).tabNavigationBar.selectTab(tabs - 1, false));
 		context.waitTicks(5);
 		context.takeScreenshot("cms-09-current-mobs-tab");
+		context.getInput().setCursorPos(250, 155);
+		context.waitTicks(3);
+		context.takeScreenshot("cms-09b-current-mobs-hover");
 
 		CmsPayloads.Sync[] sync = new CmsPayloads.Sync[1];
 		context.runOnClient(minecraft -> ControlMobSpawnsClient.setSyncListener(received -> sync[0] = received));
 		context.runOnClient(minecraft -> ClientPlayNetworking.send(new CmsPayloads.RequestSync()));
 		context.waitFor(minecraft -> sync[0] != null);
 		ClientSession session = ClientSession.remote(ClientSession.Scope.WORLD, sync[0]);
+		context.setScreen(() -> new MobDetailScreen(null, session, EntityTypes.COW));
+		context.waitTicks(5);
+		context.getInput().setCursorPos(400, 250);
+		context.getInput().scroll(-100);
+		context.waitTicks(3);
+		context.takeScreenshot("cms-09c-mob-detail-despawn-now");
 		nbtSuggestions(context, session);
 		context.setScreen(() -> null);
 	}
