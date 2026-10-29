@@ -70,6 +70,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 			nbtProportions(server);
 			spawnLists(server);
 			spawnRules(server);
+			groups(server);
 			despawn(server);
 			existingMobs(context, server);
 			networking(context, server);
@@ -283,6 +284,60 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				.forEach(entity -> entity.discard());
 			return found;
 		});
+	}
+
+	/** Mob > groups > tags, merged lists and forced vanilla values. */
+	private static void groups(TestServerContext server) {
+		setWorldConfig(server, config -> {
+			CmsConfig.MobGroup undead = new CmsConfig.MobGroup();
+			undead.members.add("#minecraft:undead");
+			undead.settings.spawnRate = 300;
+			undead.settings.bannedBiomes.add("#minecraft:is_ocean");
+			CmsConfig.NbtProportion baby = new CmsConfig.NbtProportion();
+			baby.path = "IsBaby";
+			baby.value = "1b";
+			baby.percent = 100;
+			undead.settings.nbtProportions.add(baby);
+			CmsConfig.MobGroup lowerTag = new CmsConfig.MobGroup();
+			lowerTag.members.add("#minecraft:skeletons");
+			lowerTag.settings.spawnRate = 20;
+			lowerTag.settings.bannedBiomes.add("minecraft:desert");
+			CmsConfig.MobGroup creatures = new CmsConfig.MobGroup();
+			creatures.members.add("@creature");
+			creatures.settings.banned = true;
+			config.tagGroups.addAll(List.of(undead, lowerTag, creatures));
+
+			CmsConfig.MobGroup zombies = new CmsConfig.MobGroup();
+			zombies.name = "Zombies";
+			zombies.members.add("minecraft:zombie");
+			zombies.settings.spawnRate = 50;
+			zombies.settings.despawn = CmsConfig.DespawnMode.NEVER;
+			config.groups.add(zombies);
+
+			CmsConfig.MobSettings zombie = config.getOrCreateMob("minecraft:zombie");
+			zombie.forceVanilla.add("nbtProportions:IsBaby");
+			zombie.forceVanilla.add("bannedBiomes:#minecraft:is_ocean");
+			config.getOrCreateMob("minecraft:husk").spawnRate = 200;
+			config.getOrCreateMob("minecraft:drowned").forceVanilla.add("spawnRate");
+		});
+		server.runOnServer(minecraftServer -> {
+			var active = ConfigManager.active();
+			var skeleton = active.mob(EntityTypes.SKELETON);
+			check(skeleton != null && skeleton.spawnRate == 300, "tag: undead skeletons get 300 %, the first tag wins over a later one");
+			check(skeleton.proportions.size() == 1, "tag: skeletons get the baby proportion");
+			check(skeleton.bannedBiomes.matches(minecraftServer.overworld().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BIOME)
+				.getOrThrow(net.minecraft.world.level.biome.Biomes.DESERT)), "tag lists merge: skeletons also banned in the desert");
+			var zombie = active.mob(EntityTypes.ZOMBIE);
+			check(zombie.spawnRate == 50 && zombie.despawn == CmsConfig.DespawnMode.NEVER, "group wins over tag");
+			check(zombie.proportions.isEmpty(), "mob forces the inherited proportion back to vanilla");
+			check(!zombie.bannedBiomes.matches(minecraftServer.overworld().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BIOME)
+				.getOrThrow(net.minecraft.world.level.biome.Biomes.OCEAN)), "mob forces an inherited biome ban back to vanilla");
+			check(active.mob(EntityTypes.HUSK).spawnRate == 200, "mob wins over tag");
+			check(active.mob(EntityTypes.DROWNED).spawnRate == 100.0, "mob forces the spawn rate back to vanilla");
+			check(active.mob(EntityTypes.COW).banned, "category group: cows are creatures");
+			check(active.mob(EntityTypes.CREEPER) == null, "mobs outside every group stay vanilla");
+		});
+		resetWorldConfig(server);
 	}
 
 	private static void despawn(TestServerContext server) {

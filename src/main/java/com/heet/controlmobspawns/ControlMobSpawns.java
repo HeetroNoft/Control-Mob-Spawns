@@ -23,6 +23,7 @@ public class ControlMobSpawns implements ModInitializer {
 		ServerHandlers.register();
 		ServerLifecycleEvents.SERVER_STARTING.register(ConfigManager::onServerStarting);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> ConfigManager.onServerStopped());
+		ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> ConfigManager.onTagsReloaded());
 		ServerEntityEvents.ENTITY_LOAD.register(ExistingMobCleaner::onEntityLoad);
 		ServerTickEvents.END_SERVER_TICK.register(ExistingMobCleaner::tick);
 	}

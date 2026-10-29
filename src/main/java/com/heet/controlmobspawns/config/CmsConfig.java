@@ -18,6 +18,10 @@ public class CmsConfig {
 	/** Entity type id to its settings. */
 	public Map<String, MobSettings> mobs = new TreeMap<>();
 	public List<BiomeSpawn> biomeSpawns = new ArrayList<>();
+	/** Named groups of mobs sharing settings, highest priority first. A mob's own settings come before them. */
+	public List<MobGroup> groups = new ArrayList<>();
+	/** Settings for entity tags and mob categories, highest priority first. They come after the groups. */
+	public List<MobGroup> tagGroups = new ArrayList<>();
 
 	public static class Coverage {
 		public boolean moddedMobs = true;
@@ -54,6 +58,11 @@ public class CmsConfig {
 		public List<NbtProportion> nbtProportions = new ArrayList<>();
 		public SpawnRule spawnRule;
 		public DespawnMode despawn = DespawnMode.DEFAULT;
+		/**
+		 * Settings inherited from groups and tags that are put back to vanilla here, as keys from
+		 * {@link MobSettingsResolver}: "spawnRate", or "bannedBiomes:#minecraft:is_ocean" for one entry.
+		 */
+		public List<String> forceVanilla = new ArrayList<>();
 
 		public boolean isDefault() {
 			return spawnRate == 100.0 && !banned && !hasDetailedSettings();
@@ -62,8 +71,19 @@ public class CmsConfig {
 		/** Settings other than the spawn rate and the global ban, which are edited in the ⚙ sub-menu. */
 		public boolean hasDetailedSettings() {
 			return !bannedDimensions.isEmpty() || !bannedBiomes.isEmpty() || !disabledReasons.isEmpty()
-				|| !nbtBans.isEmpty() || !nbtProportions.isEmpty() || spawnRule != null || despawn != DespawnMode.DEFAULT;
+				|| !nbtBans.isEmpty() || !nbtProportions.isEmpty() || spawnRule != null || despawn != DespawnMode.DEFAULT
+				|| !forceVanilla.isEmpty();
 		}
+	}
+
+	public static class MobGroup {
+		public String name = "";
+		/**
+		 * Entity ids, entity tags prefixed with '#' and mob categories prefixed with '@' (for
+		 * example "@monster").
+		 */
+		public List<String> members = new ArrayList<>();
+		public MobSettings settings = new MobSettings();
 	}
 
 	public static class NbtBan {

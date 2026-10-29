@@ -63,7 +63,7 @@ public final class SpawnControl {
 		MobCategory category, EntitySpawnReason reason
 	) {
 		RuntimeConfig config = ConfigManager.active();
-		if (config.mobs.isEmpty() && config.biomeSpawns.isEmpty()) {
+		if (!config.hasMobSettings() && config.biomeSpawns.isEmpty()) {
 			return list;
 		}
 		WeightedList.Builder<MobSpawnSettings.SpawnerData> builder = WeightedList.builder();
