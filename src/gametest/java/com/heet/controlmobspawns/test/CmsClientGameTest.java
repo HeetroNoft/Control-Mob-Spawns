@@ -91,7 +91,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.waitTicks(3);
 		context.takeScreenshot("cms-01b-general-reset-hover");
 		ClientSession session = context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).session());
-		check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).tabCount()) == 3, "no Current mobs tab from the title screen");
+		check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).tabCount()) == 4, "no Current mobs tab from the title screen");
 		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(1));
 		context.getInput().setCursorPos(500, 165);
 		context.waitTicks(3);
@@ -112,7 +112,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		session.config.biomeSpawns.getFirst().entity = "minecraft:blaze";
 		session.config.biomeSpawns.getFirst().biomes.add("minecraft:plains");
 		context.setScreen(() -> new MainConfigScreen(title, session));
-		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(2));
+		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(3));
 		context.waitTicks(2);
 		context.takeScreenshot("cms-06-biome-spawns-tab");
 		context.setScreen(() -> title);
@@ -429,8 +429,8 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.takeScreenshot("cms-07-home-singleplayer");
 		context.clickScreenButton("controlmobspawns.gui.home.world");
 		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
-		check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).tabCount()) == 4, "the world screen has a Current mobs tab");
-		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(3));
+		check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).tabCount()) == 5, "the world screen has a Current mobs tab");
+		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(4));
 		context.waitTicks(10);
 		context.takeScreenshot("cms-08-current-mobs-tab");
 		context.getInput().setCursorPos(500, 210);
@@ -465,7 +465,64 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.waitTicks(3);
 		context.takeScreenshot("cms-11-mob-detail-despawn-now");
 		nbtSuggestions(context, session);
+		groupScreens(context, session);
 		context.setScreen(() -> null);
+	}
+
+	/** Inherited values, the Groups tab, selection mode, copy and paste. */
+	private static void groupScreens(ClientGameTestContext context, ClientSession session) {
+		CmsConfig.MobGroup undead = new CmsConfig.MobGroup();
+		undead.name = "Undead";
+		undead.members.add("#minecraft:undead");
+		undead.settings.spawnRate = 300;
+		undead.settings.bannedBiomes.add("#minecraft:is_ocean");
+		session.config.tagGroups.add(undead);
+		context.setScreen(() -> new MobDetailScreen(null, session, EntityTypes.ZOMBIE));
+		context.waitTicks(3);
+		context.takeScreenshot("cms-17-mob-inherited");
+		context.runOnClient(minecraft -> {
+			session.config.mobs.get("minecraft:zombie").forceVanilla.add("bannedBiomes:#minecraft:is_ocean");
+			session.config.mobs.get("minecraft:zombie").forceVanilla.add("nbtBans:Gone");
+			((MobDetailScreen) minecraft.gui.screen()).refresh();
+		});
+		context.waitTicks(2);
+		context.takeScreenshot("cms-18-mob-inherited-forced");
+
+		context.setScreen(() -> new MainConfigScreen(null, session));
+		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(2));
+		context.waitTicks(2);
+		context.takeScreenshot("cms-19-groups-tab");
+
+		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(1));
+		context.clickScreenButton("controlmobspawns.gui.selection.start");
+		context.getInput().typeChars("zombie");
+		context.waitTicks(2);
+		context.clickScreenButton("controlmobspawns.gui.selection.all");
+		context.waitTicks(2);
+		context.takeScreenshot("cms-20-mobs-selection");
+		context.clickScreenButton("controlmobspawns.gui.edit");
+		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MobDetailScreen);
+		context.takeScreenshot("cms-21-selection-edit");
+		context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
+		context.clickScreenButton("controlmobspawns.gui.selection.group");
+		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MobDetailScreen);
+		check(session.config.groups.size() == 1 && session.config.groups.getFirst().members.contains("minecraft:zombie")
+			&& session.config.groups.getFirst().members.contains("minecraft:zombie_villager"), "group created from the selection");
+
+		session.config.groups.getFirst().settings.spawnRate = 42;
+		context.clickScreenButton("controlmobspawns.gui.copy");
+		context.runOnClient(minecraft -> MobDetailScreen.pasteInto(session.config.getOrCreateMob("minecraft:cow")));
+		check(session.config.mobs.get("minecraft:cow").spawnRate == 42, "paste copies the settings");
+
+		CmsConfig.MobSettings pig = session.config.getOrCreateMob("minecraft:pig");
+		pig.banned = true;
+		pig.spawnRate = 70;
+		CmsConfig.MobSettings bulk = new CmsConfig.MobSettings();
+		bulk.spawnRate = 250;
+		bulk.disabledReasons.add("NATURAL");
+		bulk.applyChangesTo(pig);
+		check(pig.spawnRate == 250 && pig.banned && pig.disabledReasons.contains("NATURAL"), "editing together only writes what changed");
 	}
 
 	private static void nbtSuggestions(ClientGameTestContext context, ClientSession session) {

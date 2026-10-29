@@ -128,7 +128,7 @@ public final class MobSettingsResolver {
 
 	private static List<Entry> entries(List<Source> levels) {
 		List<Entry> entries = new ArrayList<>();
-		scalar(entries, levels, SPAWN_RATE, settings -> settings.spawnRate != 100.0, settings -> number(settings.spawnRate) + " %",
+		scalar(entries, levels, SPAWN_RATE, settings -> settings.spawnRate != 100.0, settings -> number(settings.spawnRate),
 			(from, to) -> to.spawnRate = from.spawnRate);
 		scalar(entries, levels, BANNED, settings -> settings.banned, settings -> "true", (from, to) -> to.banned = true);
 		scalar(entries, levels, DESPAWN, settings -> settings.despawn != null && settings.despawn != CmsConfig.DespawnMode.DEFAULT,

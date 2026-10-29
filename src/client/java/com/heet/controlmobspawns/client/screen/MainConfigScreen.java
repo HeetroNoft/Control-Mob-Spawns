@@ -43,6 +43,7 @@ public class MainConfigScreen extends CmsScreen {
 			.append(Component.translatable(session.scope == ClientSession.Scope.WORLD ? "controlmobspawns.gui.scope.world" : "controlmobspawns.gui.scope.global")));
 		tabs.add(new GeneralTab());
 		tabs.add(new MobsTab());
+		tabs.add(new GroupsTab());
 		tabs.add(new BiomeSpawnsTab());
 		if (session.remote) {
 			tabs.add(new CurrentMobsTab());
@@ -59,7 +60,9 @@ public class MainConfigScreen extends CmsScreen {
 
 	/** Rebuilds the header too, for tabs whose toolbar shows live data. */
 	void reinit() {
+		double scroll = list == null ? 0 : list.scrollAmount();
 		rebuildWidgets();
+		list.setScrollAmount(scroll);
 	}
 
 	@Override

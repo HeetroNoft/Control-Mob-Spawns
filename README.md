@@ -12,6 +12,8 @@ A Fabric mod for Minecraft 26.2 that lets you control mob spawning from an in-ga
 - **NBT proportions.** You choose what share of new mobs gets a value. For example, `IsBaby: 1b` at 20 % gives 20 % baby zombies and 80 % adults.
 - **Spawn rules.** A custom rule replaces a mob's own spawn conditions. It can check block light, sky light, height, the blocks below, day or night, weather and moon phase. This lets a mob spawn where it normally can't.
 - **Biome spawns.** You can add any mob to the natural spawns of biomes or biome tags, with a weight and a group size.
+- **Groups, tags and categories.** Settings can be given to a named group of mobs, to an entity tag such as `#minecraft:undead` or to a category such as monsters. A mob can still keep a vanilla value that its group changes.
+- **Several mobs at once.** In the Mobs tab you can select several mobs to edit them together, paste copied settings on them, or make a group of them.
 - **Mob caps** per category (monsters, animals, ambient, water…).
 - **Despawn controls:**
   - instant and random despawn distances per category;
@@ -47,7 +49,7 @@ Open **Mods → Control Mob Spawns → ⚙** (Mod Menu). It works from the title
 - **In a world**, you first choose between the **global configuration** and **this world's configuration**. On a server, the server sends the configuration and saves your changes.
 - **With a key while playing**: bind *Open this world's configuration* in **Options → Controls → Key Binds → Control Mob Spawns** (it has no key by default). It opens this world's configuration directly, or the server's in multiplayer. Players without permission get a message instead.
 
-The screen has four tabs: **General**, **Mobs**, **Biome spawns** and **Current mobs**. The Current mobs tab only appears in a world. A search box above each list filters it. Changes stay pending until you press **Save**, and leaving with unsaved changes asks for confirmation.
+The screen has five tabs: **General**, **Mobs**, **Groups**, **Biome spawns** and **Current mobs**. The Current mobs tab only appears in a world. A search box above each list filters it. Changes stay pending until you press **Save**, and leaving with unsaved changes asks for confirmation.
 
 A few conventions apply everywhere:
 
@@ -67,6 +69,23 @@ A few conventions apply everywhere:
 ### Spawn rates and mob caps
 
 A spawn rate only changes which mobs fill the mob cap. For example, raising zombies to 300 % makes them more common among monsters, but the total number of monsters stays the same. To get more or fewer mobs overall, change the **mob caps** in the General tab.
+
+### Groups, tags and several mobs at once
+
+The **Groups** tab holds two lists:
+
+- **Groups**: mobs chosen one by one.
+- **Tags and categories**: entity tags (`#minecraft:undead`) and categories (`@monster`, `@creature`…).
+
+Each entry's ⚙ opens the same settings as a mob, and these settings apply to all its members. When several levels set the same value, the most specific one wins: the mob's own settings, then its groups, then its tags and categories. Within each list, the higher entry wins; use ↑ and ↓ to reorder. List settings such as banned biomes, disabled spawn types and NBT bans are merged across levels. For NBT proportions, each path comes from a single level.
+
+A mob's ⚙ screen starts with **From groups and tags**, which lists what the mob inherits and where it comes from. Switching a value to **Vanilla** keeps Minecraft's value for that mob only. For example, a 10 % baby proportion on `#minecraft:undead` can be switched off for zombie villagers only.
+
+In the **Mobs** tab, **Select…** turns on check boxes. With mobs selected, you can:
+
+- **Edit** them together. The screen starts from vanilla values, and only the values you change are written into each mob.
+- **Paste** the settings copied with **Copy** from any mob or group screen.
+- Make a **Group** of them.
 
 ### Spawn types
 
@@ -147,8 +166,15 @@ You can edit the files by hand; they are read when the world or server starts. M
       "nbtProportions": [{ "path": "IsBaby", "value": "1b", "percent": 20.0 }],
       "despawn": "DEFAULT"
     },
-    "minecraft:phantom": { "banned": true }
+    "minecraft:phantom": { "banned": true },
+    "minecraft:zombie_villager": { "forceVanilla": ["nbtProportions:IsBaby"] }
   },
+  "groups": [
+    { "name": "Village raiders", "members": ["minecraft:pillager", "minecraft:vindicator"], "settings": { "spawnRate": 200.0 } }
+  ],
+  "tagGroups": [
+    { "name": "Undead", "members": ["#minecraft:undead"], "settings": { "nbtProportions": [{ "path": "IsBaby", "value": "1b", "percent": 10.0 }] } }
+  ],
   "biomeSpawns": [
     { "entity": "minecraft:blaze", "biomes": ["minecraft:desert"], "weight": 5, "minCount": 1, "maxCount": 2 }
   ]

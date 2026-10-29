@@ -74,6 +74,62 @@ public class CmsConfig {
 				|| !nbtBans.isEmpty() || !nbtProportions.isEmpty() || spawnRule != null || despawn != DespawnMode.DEFAULT
 				|| !forceVanilla.isEmpty();
 		}
+
+		public MobSettings copy() {
+			return ConfigManager.GSON.fromJson(ConfigManager.GSON.toJsonTree(this), MobSettings.class);
+		}
+
+		/** Replaces every value with a copy of {@code other}'s, for paste. */
+		public void setFrom(MobSettings other) {
+			MobSettings copy = other.copy();
+			spawnRate = copy.spawnRate;
+			banned = copy.banned;
+			bannedDimensions = copy.bannedDimensions;
+			bannedBiomes = copy.bannedBiomes;
+			disabledReasons = copy.disabledReasons;
+			nbtBans = copy.nbtBans;
+			nbtProportions = copy.nbtProportions;
+			spawnRule = copy.spawnRule;
+			despawn = copy.despawn;
+			forceVanilla = copy.forceVanilla;
+		}
+
+		/**
+		 * Writes what differs from vanilla here into {@code target}, for editing several mobs at
+		 * once: changed simple values replace the target's, list entries are added, and the
+		 * proportions of a path replace the target's for that path.
+		 */
+		public void applyChangesTo(MobSettings target) {
+			MobSettings copy = copy();
+			if (copy.spawnRate != 100.0) {
+				target.spawnRate = copy.spawnRate;
+			}
+			if (copy.banned) {
+				target.banned = true;
+			}
+			if (copy.despawn != null && copy.despawn != DespawnMode.DEFAULT) {
+				target.despawn = copy.despawn;
+			}
+			if (copy.spawnRule != null) {
+				target.spawnRule = copy.spawnRule;
+			}
+			addMissing(copy.bannedDimensions, target.bannedDimensions);
+			addMissing(copy.bannedBiomes, target.bannedBiomes);
+			addMissing(copy.disabledReasons, target.disabledReasons);
+			addMissing(copy.forceVanilla, target.forceVanilla);
+			target.nbtBans.addAll(copy.nbtBans);
+			List<String> paths = copy.nbtProportions.stream().map(proportion -> proportion.path).toList();
+			target.nbtProportions.removeIf(existing -> paths.contains(existing.path));
+			target.nbtProportions.addAll(copy.nbtProportions);
+		}
+
+		private static void addMissing(List<String> from, List<String> to) {
+			for (String entry : from) {
+				if (!to.contains(entry)) {
+					to.add(entry);
+				}
+			}
+		}
 	}
 
 	public static class MobGroup {
