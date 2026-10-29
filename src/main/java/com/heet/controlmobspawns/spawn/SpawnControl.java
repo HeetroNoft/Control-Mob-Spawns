@@ -227,6 +227,11 @@ public final class SpawnControl {
 		}
 	}
 
+	public static boolean hasSpawnRule(EntityType<?> type) {
+		RuntimeConfig.CompiledMob mob = ConfigManager.active().mob(type);
+		return mob != null && mob.spawnRule != null;
+	}
+
 	/** Returns the result of the configured spawn rule, or null to keep the vanilla check. */
 	public static Boolean checkSpawnRule(EntityType<?> type, ServerLevelAccessor level, BlockPos pos) {
 		RuntimeConfig.CompiledMob mob = ConfigManager.active().mob(type);

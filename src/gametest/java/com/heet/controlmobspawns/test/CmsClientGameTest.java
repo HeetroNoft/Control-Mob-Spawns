@@ -238,6 +238,50 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				"night-only rule refuses at noon");
 		});
 		resetWorldConfig(server);
+		naturalSpawning(server);
+	}
+
+	/**
+	 * Runs vanilla's whole natural spawn loop, not only the placement predicate: the mob's own
+	 * checks (light for monsters) must not undo a spawn rule.
+	 */
+	private static void naturalSpawning(TestServerContext server) {
+		for (EntityType<?> type : List.of(EntityTypes.ZOMBIE, EntityTypes.WARDEN)) {
+			String id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(type).toString();
+			check(naturalSpawns(server, type) == 0, "vanilla: no natural " + id + " on the surface at noon");
+			setWorldConfig(server, config -> {
+				config.getOrCreateMob(id).spawnRule = new CmsConfig.SpawnRule();
+				CmsConfig.BiomeSpawn spawn = new CmsConfig.BiomeSpawn();
+				spawn.entity = id;
+				spawn.biomes.add("#minecraft:is_overworld");
+				spawn.weight = 100_000;
+				config.biomeSpawns.add(spawn);
+			});
+			int spawned = naturalSpawns(server, type);
+			check(spawned > 0, "empty rule + biome spawn: " + id + " spawns naturally at noon (" + spawned + ")");
+			resetWorldConfig(server);
+		}
+	}
+
+	/** Runs the natural monster spawn loop around the player and returns how many mobs of this type appeared. */
+	private static int naturalSpawns(TestServerContext server, EntityType<?> type) {
+		return server.computeOnServer(minecraftServer -> {
+			ServerLevel level = minecraftServer.overworld();
+			Player player = level.players().getFirst();
+			level.getEntities(type, entity -> true).forEach(entity -> entity.discard());
+			for (int angle = 0; angle < 360; angle += 10) {
+				double radians = Math.toRadians(angle);
+				BlockPos target = player.blockPosition().offset((int) (Math.cos(radians) * 48), 0, (int) (Math.sin(radians) * 48));
+				for (int attempt = 0; attempt < 10; attempt++) {
+					net.minecraft.world.level.NaturalSpawner.spawnCategoryForPosition(MobCategory.MONSTER, level, surface(level, target));
+				}
+			}
+			int found = level.getEntities(type, entity -> true).size();
+			// Also removes the chickens of chicken jockeys.
+			level.getEntities(net.minecraft.world.level.entity.EntityTypeTest.forClass(net.minecraft.world.entity.Mob.class), entity -> true)
+				.forEach(entity -> entity.discard());
+			return found;
+		});
 	}
 
 	private static void despawn(TestServerContext server) {
