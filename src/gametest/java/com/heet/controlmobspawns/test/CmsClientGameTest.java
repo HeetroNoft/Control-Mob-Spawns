@@ -5,6 +5,7 @@ import com.heet.controlmobspawns.client.ClientSession;
 import com.heet.controlmobspawns.client.ControlMobSpawnsClient;
 import com.heet.controlmobspawns.client.ModMenuIntegration;
 import com.heet.controlmobspawns.client.NbtSuggestions;
+import com.heet.controlmobspawns.client.WorldConfigKey;
 import com.heet.controlmobspawns.client.screen.HomeScreen;
 import com.heet.controlmobspawns.client.screen.MobDetailScreen;
 import com.heet.controlmobspawns.client.screen.MainConfigScreen;
@@ -482,6 +483,15 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				connection.waitForServerboundPackets();
 				check(server.computeOnServer(minecraftServer -> ConfigManager.active().mob(EntityTypes.COW) == null), "non-op save rejected");
 
+				context.setScreen(() -> null);
+				context.runOnClient(minecraft -> {
+					WorldConfigKey.OPEN_WORLD_CONFIG.setKey(com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_K));
+					net.minecraft.client.KeyMapping.resetMapping();
+				});
+				context.getInput().pressKey(GLFW.GLFW_KEY_K);
+				context.waitTicks(20);
+				check(context.computeOnClient(minecraft -> minecraft.gui.screen() == null), "non-op: the key opens nothing");
+
 				String name = context.computeOnClient(minecraft -> connection.getClientPlayer().getName().getString());
 				server.runCommand("op " + name);
 				context.setScreen(() -> null);
@@ -489,6 +499,11 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				context.waitFor(minecraft -> minecraft.gui.screen() instanceof HomeScreen home && home.canEdit() != null);
 				check(context.computeOnClient(minecraft -> ((HomeScreen) minecraft.gui.screen()).canEdit()), "op can edit on a dedicated server");
 				context.takeScreenshot("cms-16-home-dedicated-op");
+				context.setScreen(() -> null);
+				context.getInput().pressKey(GLFW.GLFW_KEY_K);
+				context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
+				check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).session().scope == ClientSession.Scope.WORLD),
+					"op: the key opens the world configuration");
 				context.runOnClient(minecraft -> ClientPlayNetworking.send(new CmsPayloads.Save(true, deniedJson)));
 				server.waitFor(minecraftServer -> ConfigManager.active().mob(EntityTypes.COW) != null);
 				context.setScreen(() -> null);

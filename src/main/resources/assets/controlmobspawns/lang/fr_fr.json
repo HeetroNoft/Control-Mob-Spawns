@@ -1,5 +1,7 @@
 {
 	"modmenu.descriptionTranslation.controlmobspawns": "Désactivez des mobs, ajustez les taux de spawn, les mob caps, le despawn et les règles de spawn depuis un menu en jeu.",
+	"key.category.controlmobspawns.main": "Control Mob Spawns",
+	"key.controlmobspawns.open_world_config": "Ouvrir la configuration de ce monde",
 	"controlmobspawns.title": "Control Mob Spawns",
 	"controlmobspawns.message.no_permission": "Vous n'avez pas la permission de modifier la configuration de Control Mob Spawns.",
 	"controlmobspawns.message.saved": "Configuration de Control Mob Spawns enregistrée.",

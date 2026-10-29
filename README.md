@@ -45,6 +45,7 @@ Open **Mods → Control Mob Spawns → ⚙** (Mod Menu). It works from the title
 
 - **From the title screen**, you edit the global configuration of this Minecraft instance.
 - **In a world**, you first choose between the **global configuration** and **this world's configuration**. On a server, the server sends the configuration and saves your changes.
+- **With a key while playing**: bind *Open this world's configuration* in **Options → Controls → Key Binds → Control Mob Spawns** (it has no key by default). It opens this world's configuration directly, or the server's in multiplayer. Players without permission get a message instead.
 
 The screen has four tabs: **General**, **Mobs**, **Biome spawns** and **Current mobs**. The Current mobs tab only appears in a world. A search box above each list filters it. Changes stay pending until you press **Save**, and leaving with unsaved changes asks for confirmation.
 
