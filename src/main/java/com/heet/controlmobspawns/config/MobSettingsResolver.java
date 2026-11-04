@@ -1,11 +1,9 @@
 package com.heet.controlmobspawns.config;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -17,10 +15,10 @@ import net.minecraft.world.entity.EntityType;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Combines a mob's own settings with those of its groups and tags. The most specific level wins:
- * the mob, then the groups in their order, then the tags in their order. Simple values come from
- * the first level that changes them; list entries are merged. A level can put an inherited value
- * back to vanilla with {@link CmsConfig.MobSettings#forceVanilla}.
+ * Combines a mob's own settings with those of its groups. The most specific level wins: the mob,
+ * then the groups in their order. Simple values come from
+ * the first level that changes them; list entries are merged. A mob with
+ * {@link CmsConfig.MobSettings#ignoreGroups} only gets its own settings, vanilla ones included.
  */
 public final class MobSettingsResolver {
 	public static final String SPAWN_RATE = "spawnRate";
@@ -40,7 +38,7 @@ public final class MobSettingsResolver {
 	public record Source(String name, CmsConfig.MobSettings settings) {
 	}
 
-	/** A value given by a level: its force-vanilla key, its value as text and the level's name. */
+	/** A value given by a level: its key, its value as text and the level's name. */
 	public record Inherited(String key, String value, String source) {
 	}
 
@@ -51,23 +49,33 @@ public final class MobSettingsResolver {
 		return list + ":" + entry;
 	}
 
+	public static final String EXCLUDE = "!";
+
+	/** Whether a mob matches one of the group's entries and none of its '!' exclusions. */
 	public static boolean isMember(CmsConfig.MobGroup group, EntityType<?> type) {
-		Identifier id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
+		boolean included = false;
 		for (String member : group.members) {
-			if (member.startsWith("@")) {
-				if (type.getCategory().getName().equals(member.substring(1))) {
-					return true;
+			if (member.startsWith(EXCLUDE)) {
+				if (matches(member.substring(EXCLUDE.length()), type)) {
+					return false;
 				}
-			} else if (member.startsWith("#")) {
-				Identifier tag = Identifier.tryParse(member.substring(1));
-				if (tag != null && hasTag(type, TagKey.create(Registries.ENTITY_TYPE, tag))) {
-					return true;
-				}
-			} else if (id.equals(Identifier.tryParse(member))) {
-				return true;
+			} else if (!included && matches(member, type)) {
+				included = true;
 			}
 		}
-		return false;
+		return included;
+	}
+
+	/** Whether a mob matches an entity id, an entity tag ("#...") or a mob category ("@..."). */
+	public static boolean matches(String entry, EntityType<?> type) {
+		if (entry.startsWith("@")) {
+			return type.getCategory().getName().equals(entry.substring(1));
+		}
+		if (entry.startsWith("#")) {
+			Identifier tag = Identifier.tryParse(entry.substring(1));
+			return tag != null && hasTag(type, TagKey.create(Registries.ENTITY_TYPE, tag));
+		}
+		return BuiltInRegistries.ENTITY_TYPE.getKey(type).equals(Identifier.tryParse(entry));
 	}
 
 	/** Tags are not bound before a world is loaded (title screen): no tag matches then. */
@@ -83,14 +91,12 @@ public final class MobSettingsResolver {
 		return group.name.isBlank() ? String.join(", ", group.members) : group.name;
 	}
 
-	/** The groups, then the tags, that this mob belongs to, in priority order. */
+	/** The groups that this mob belongs to, in priority order. */
 	public static List<Source> groupSources(CmsConfig config, EntityType<?> type) {
 		List<Source> sources = new ArrayList<>();
-		for (List<CmsConfig.MobGroup> groups : List.of(config.groups, config.tagGroups)) {
-			for (CmsConfig.MobGroup group : groups) {
-				if (isMember(group, type)) {
-					sources.add(new Source(groupName(group), group.settings));
-				}
+		for (CmsConfig.MobGroup group : config.groups) {
+			if (isMember(group, type)) {
+				sources.add(new Source(groupName(group), group.settings));
 			}
 		}
 		return sources;
@@ -102,6 +108,9 @@ public final class MobSettingsResolver {
 		CmsConfig.MobSettings own = config.mobs.get(BuiltInRegistries.ENTITY_TYPE.getKey(type).toString());
 		if (own != null) {
 			sources.add(new Source("", own));
+			if (own.ignoreGroups) {
+				return sources;
+			}
 		}
 		sources.addAll(groupSources(config, type));
 		return sources;
@@ -121,7 +130,7 @@ public final class MobSettingsResolver {
 		return result;
 	}
 
-	/** What these levels give, after their own force-vanilla keys. */
+	/** What these levels give, each value with the level it comes from. */
 	public static List<Inherited> inherited(List<Source> levels) {
 		return entries(levels).stream().map(Entry::info).toList();
 	}
@@ -136,29 +145,27 @@ public final class MobSettingsResolver {
 		scalar(entries, levels, SPAWN_RULE, settings -> settings.spawnRule != null && settings.spawnRule.enabled, settings -> "",
 			(from, to) -> to.spawnRule = from.spawnRule);
 
-		Set<String> forced = new HashSet<>();
 		for (Source level : levels) {
 			CmsConfig.MobSettings settings = level.settings();
 			for (String dimension : settings.bannedDimensions) {
-				list(entries, forced, level, key(BANNED_DIMENSIONS, dimension), dimension, to -> to.bannedDimensions.add(dimension));
+				list(entries, level, key(BANNED_DIMENSIONS, dimension), dimension, to -> to.bannedDimensions.add(dimension));
 			}
 			for (String biome : settings.bannedBiomes) {
-				list(entries, forced, level, key(BANNED_BIOMES, biome), biome, to -> to.bannedBiomes.add(biome));
+				list(entries, level, key(BANNED_BIOMES, biome), biome, to -> to.bannedBiomes.add(biome));
 			}
 			for (String reason : settings.disabledReasons) {
-				list(entries, forced, level, key(DISABLED_REASONS, reason), reason, to -> to.disabledReasons.add(reason));
+				list(entries, level, key(DISABLED_REASONS, reason), reason, to -> to.disabledReasons.add(reason));
 			}
 			Map<String, List<CmsConfig.NbtBan>> bans = new LinkedHashMap<>();
 			settings.nbtBans.forEach(ban -> bans.computeIfAbsent(ban.path, k -> new ArrayList<>()).add(ban));
-			bans.forEach((path, list) -> list(entries, forced, level, key(NBT_BANS, path),
+			bans.forEach((path, list) -> list(entries, level, key(NBT_BANS, path),
 				path + " = " + String.join(" | ", list.stream().map(ban -> ban.value).toList()), to -> to.nbtBans.addAll(list)));
 			// Proportions of one path come from a single level: from several, they could add up to more than 100 %.
 			Map<String, List<CmsConfig.NbtProportion>> proportions = new LinkedHashMap<>();
 			settings.nbtProportions.forEach(proportion -> proportions.computeIfAbsent(proportion.path, k -> new ArrayList<>()).add(proportion));
-			proportions.forEach((path, list) -> list(entries, forced, level, key(NBT_PROPORTIONS, path),
+			proportions.forEach((path, list) -> list(entries, level, key(NBT_PROPORTIONS, path),
 				path + ": " + String.join(", ", list.stream().map(proportion -> proportion.value + " " + number(proportion.percent) + " %").toList()),
 				to -> to.nbtProportions.addAll(list)));
-			forced.addAll(settings.forceVanilla);
 		}
 		return entries;
 	}
@@ -171,9 +178,6 @@ public final class MobSettingsResolver {
 		Function<CmsConfig.MobSettings, String> text, Copy copy) {
 		for (Source level : levels) {
 			CmsConfig.MobSettings settings = level.settings();
-			if (settings.forceVanilla.contains(key)) {
-				return;
-			}
 			if (changed.test(settings)) {
 				entries.add(new Entry(new Inherited(key, text.apply(settings), level.name()), to -> copy.copy(settings, to)));
 				return;
@@ -182,11 +186,11 @@ public final class MobSettingsResolver {
 	}
 
 	/**
-	 * Adds an entry unless a more specific level forced it to vanilla or already gave it. NBT bans
-	 * on the same path add up; for anything else the most specific level wins.
+	 * Adds an entry unless a more specific level already gave it. NBT bans on the same path add up;
+	 * for anything else the most specific level wins.
 	 */
-	private static void list(List<Entry> entries, Set<String> forced, Source level, String key, String value, Consumer<CmsConfig.MobSettings> apply) {
-		if (forced.contains(key) || !key.startsWith(NBT_BANS + ":") && entries.stream().anyMatch(entry -> entry.info().key().equals(key))) {
+	private static void list(List<Entry> entries, Source level, String key, String value, Consumer<CmsConfig.MobSettings> apply) {
+		if (!key.startsWith(NBT_BANS + ":") && entries.stream().anyMatch(entry -> entry.info().key().equals(key))) {
 			return;
 		}
 		entries.add(new Entry(new Inherited(key, value, level.name()), apply));

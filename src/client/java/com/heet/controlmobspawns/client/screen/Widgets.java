@@ -100,6 +100,13 @@ public final class Widgets {
 		return button;
 	}
 
+	/** A ↺ button with its tooltip, running {@code onPress}. */
+	public static IconButton resetButton(Component tooltip, Runnable onPress) {
+		IconButton button = new IconButton(IconButton.RESET, tooltip, onPress);
+		button.setTooltip(Tooltip.create(tooltip));
+		return button;
+	}
+
 	public static CycleButton<Boolean> onOff(boolean value, int width, Consumer<Boolean> onChange) {
 		return toggle(value, width, Component.translatable("options.on"), Component.translatable("options.off"), onChange);
 	}

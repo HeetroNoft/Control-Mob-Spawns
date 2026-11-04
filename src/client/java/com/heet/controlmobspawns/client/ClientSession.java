@@ -16,33 +16,43 @@ public final class ClientSession {
 		GLOBAL, WORLD
 	}
 
+	private static final int VANILLA_MIN_Y = -64;
+	private static final int VANILLA_MAX_Y = 319;
+
 	public final Scope scope;
 	public final CmsConfig config;
 	public final boolean remote;
 	public final List<String> dimensions;
 	public final List<String> biomes;
 	public final List<String> biomeTags;
+	/** Lowest and highest block heights over every dimension, to prefill new spawn rules. */
+	public final int minY;
+	public final int maxY;
 	/** The configuration as last saved, to tell whether there are unsaved changes. */
 	private String savedJson;
 
-	private ClientSession(Scope scope, CmsConfig config, boolean remote, List<String> dimensions, List<String> biomes, List<String> biomeTags) {
+	private ClientSession(Scope scope, CmsConfig config, boolean remote, List<String> dimensions, List<String> biomes, List<String> biomeTags,
+		int minY, int maxY) {
 		this.scope = scope;
 		this.config = config;
 		this.remote = remote;
 		this.dimensions = dimensions;
 		this.biomes = biomes;
 		this.biomeTags = biomeTags;
+		this.minY = minY;
+		this.maxY = maxY;
 		this.savedJson = normalizedJson(config);
 	}
 
 	public static ClientSession local() {
 		List<String> dimensions = List.of(Level.OVERWORLD.identifier().toString(), Level.NETHER.identifier().toString(), Level.END.identifier().toString());
-		return new ClientSession(Scope.GLOBAL, ConfigManager.globalConfig(), false, dimensions, List.of(), List.of());
+		// No world from the title screen: the vanilla Overworld heights.
+		return new ClientSession(Scope.GLOBAL, ConfigManager.globalConfig(), false, dimensions, List.of(), List.of(), VANILLA_MIN_Y, VANILLA_MAX_Y);
 	}
 
 	public static ClientSession remote(Scope scope, CmsPayloads.Sync sync) {
 		String json = scope == Scope.WORLD ? sync.effectiveJson() : sync.globalJson();
-		return new ClientSession(scope, ConfigManager.fromJsonString(json), true, sync.dimensions(), sync.biomes(), sync.biomeTags());
+		return new ClientSession(scope, ConfigManager.fromJsonString(json), true, sync.dimensions(), sync.biomes(), sync.biomeTags(), sync.minY(), sync.maxY());
 	}
 
 	public boolean isDirty() {

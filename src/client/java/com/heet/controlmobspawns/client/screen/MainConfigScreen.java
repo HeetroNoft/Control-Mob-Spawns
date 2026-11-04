@@ -43,11 +43,11 @@ public class MainConfigScreen extends CmsScreen {
 			.append(Component.translatable(session.scope == ClientSession.Scope.WORLD ? "controlmobspawns.gui.scope.world" : "controlmobspawns.gui.scope.global")));
 		tabs.add(new GeneralTab());
 		tabs.add(new MobsTab());
-		tabs.add(new GroupsTab());
-		tabs.add(new BiomeSpawnsTab());
 		if (session.remote) {
 			tabs.add(new CurrentMobsTab());
 		}
+		tabs.add(new GroupsTab());
+		tabs.add(new BiomeSpawnsTab());
 	}
 
 	public ClientSession session() {

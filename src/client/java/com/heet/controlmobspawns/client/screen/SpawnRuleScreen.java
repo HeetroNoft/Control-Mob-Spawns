@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -14,8 +15,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.MoonPhase;
 import org.jspecify.annotations.Nullable;
 
-/** Replaces the spawn conditions of a mob. A new rule starts disabled so that it changes nothing until enabled. */
+/**
+ * Replaces the spawn conditions of a mob. A new rule starts disabled so that it changes nothing
+ * until enabled, with light and height ranges that exclude nothing.
+ */
 public class SpawnRuleScreen extends CmsScreen {
+	private static final int MAX_LIGHT = 15;
+
 	private final CmsConfig.MobSettings settings;
 	private final CmsConfig.SpawnRule rule;
 
@@ -25,6 +31,12 @@ public class SpawnRuleScreen extends CmsScreen {
 		if (settings.spawnRule == null) {
 			settings.spawnRule = new CmsConfig.SpawnRule();
 			settings.spawnRule.enabled = false;
+			settings.spawnRule.minBlockLight = 0;
+			settings.spawnRule.maxBlockLight = MAX_LIGHT;
+			settings.spawnRule.minSkyLight = 0;
+			settings.spawnRule.maxSkyLight = MAX_LIGHT;
+			settings.spawnRule.minY = session.minY;
+			settings.spawnRule.maxY = session.maxY;
 		}
 		this.rule = settings.spawnRule;
 	}
@@ -50,28 +62,33 @@ public class SpawnRuleScreen extends CmsScreen {
 			BuiltInRegistries.BLOCK.keySet().stream().map(Object::toString).sorted(),
 			BuiltInRegistries.BLOCK.getTags().map(tag -> "#" + tag.key().location()).sorted()).toList();
 		int blockCount = rule.blocksBelow.size();
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.rule.blocks_below"))
+		RowList.Row blocksRow = RowList.row(Component.translatable("controlmobspawns.gui.rule.blocks_below"))
 			.info(Component.translatable("controlmobspawns.gui.rule.blocks_below.hint"))
 			.hover(Widgets.button(Widgets.editLabel(blockCount), 80,
 				button -> minecraft.gui.setScreen(new IdListScreen(this, session, Component.translatable("controlmobspawns.gui.rule.blocks_below"),
-					rule.blocksBelow, blocks)))));
+					rule.blocksBelow, blocks))));
+		rows.add(withClear(blocksRow, blockCount > 0, rule.blocksBelow::clear));
 
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.rule.environment")));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.rule.time"))
+		rows.add(withClear(RowList.row(Component.translatable("controlmobspawns.gui.rule.time"))
 			.rest(MobDetailScreen.value(timeName(rule.time), rule.time != CmsConfig.TimeOfDay.ANY))
 			.hover(Widgets.cycle(List.of(CmsConfig.TimeOfDay.values()), rule.time, 100, SpawnRuleScreen::timeName, time -> {
 				rule.time = time;
 				refresh();
-			})));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.rule.weather"))
+			})), rule.time != CmsConfig.TimeOfDay.ANY, () -> rule.time = CmsConfig.TimeOfDay.ANY));
+		rows.add(withClear(RowList.row(Component.translatable("controlmobspawns.gui.rule.weather"))
 			.rest(MobDetailScreen.value(weatherName(rule.weather), rule.weather != CmsConfig.Weather.ANY))
 			.hover(Widgets.cycle(List.of(CmsConfig.Weather.values()), rule.weather, 100, SpawnRuleScreen::weatherName, weather -> {
 				rule.weather = weather;
 				refresh();
-			})));
+			})), rule.weather != CmsConfig.Weather.ANY, () -> rule.weather = CmsConfig.Weather.ANY));
 
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.rule.moon"))
 			.info(Component.translatable("controlmobspawns.gui.rule.moon.hint")));
+		if (!rule.moonPhases.isEmpty()) {
+			rows.add(withClear(RowList.row(Component.translatable("controlmobspawns.gui.rule.moon.any").withStyle(ChatFormatting.GRAY)), true,
+				rule.moonPhases::clear));
+		}
 		for (MoonPhase phase : MoonPhase.values()) {
 			int index = phase.index();
 			rows.add(RowList.row(Component.translatable("controlmobspawns.moon." + phase.getSerializedName()))
@@ -85,12 +102,27 @@ public class SpawnRuleScreen extends CmsScreen {
 		return rows;
 	}
 
-	/** A min/max row: two boxes, empty meaning no limit. */
+	/** A min/max row: two boxes, empty meaning no limit, and ↺ to empty both. */
 	private RowList.Row range(String key, @Nullable Integer min, @Nullable Integer max, Consumer<@Nullable Integer> setMin, Consumer<@Nullable Integer> setMax) {
-		return RowList.row(Component.translatable("controlmobspawns.gui.rule." + key))
+		RowList.Row row = RowList.row(Component.translatable("controlmobspawns.gui.rule." + key))
 			.info(Component.translatable("controlmobspawns.gui.rule.range.hint"))
 			.add(Widgets.optionalIntBox(min, 50, Component.translatable("controlmobspawns.gui.min"), setMin))
 			.add(Widgets.optionalIntBox(max, 50, Component.translatable("controlmobspawns.gui.max"), setMax));
+		return withClear(row, min != null || max != null, () -> {
+			setMin.accept(null);
+			setMax.accept(null);
+		});
+	}
+
+	/** Adds the ↺ button emptying a condition, while it is set. */
+	private RowList.Row withClear(RowList.Row row, boolean set, Runnable clear) {
+		if (set) {
+			row.fixed(Widgets.resetButton(Component.translatable("controlmobspawns.gui.rule.clear"), () -> {
+				clear.run();
+				refresh();
+			}));
+		}
+		return row;
 	}
 
 	private static Component timeName(CmsConfig.TimeOfDay time) {

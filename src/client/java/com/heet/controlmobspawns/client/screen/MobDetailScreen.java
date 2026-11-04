@@ -10,7 +10,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -35,8 +34,10 @@ public class MobDetailScreen extends CmsScreen {
 	/** Settings copied with "Copy", shared by every screen until the game closes. */
 	private static CmsConfig.@Nullable MobSettings clipboard;
 
-	/** The mob whose NBT paths are suggested; for a group, one of its members. */
+	/** The mob, for its live counts; for a group or a selection, its first mob. */
 	private final String id;
+	/** The mobs whose NBT paths are suggested: the mob, the group's members or the selection. */
+	private final List<String> nbtEntities;
 	private final CmsConfig.MobSettings settings;
 	/** Whether this edits one mob: only then are inherited values and live counts shown. */
 	private final boolean singleMob;
@@ -45,14 +46,15 @@ public class MobDetailScreen extends CmsScreen {
 	private @Nullable Map<String, Integer> counts;
 
 	public MobDetailScreen(Screen parent, ClientSession session, EntityType<?> type) {
-		this(parent, session, Component.translatable("controlmobspawns.gui.mob.title", Mobs.name(type)), Mobs.id(type),
+		this(parent, session, Component.translatable("controlmobspawns.gui.mob.title", Mobs.name(type)), List.of(Mobs.id(type)),
 			session.config.getOrCreateMob(Mobs.id(type)), true, () -> MobSettingsResolver.groupSources(session.config, type), null);
 	}
 
-	private MobDetailScreen(Screen parent, ClientSession session, Component title, String id, CmsConfig.MobSettings settings, boolean singleMob,
+	private MobDetailScreen(Screen parent, ClientSession session, Component title, List<String> mobs, CmsConfig.MobSettings settings, boolean singleMob,
 		Supplier<List<MobSettingsResolver.Source>> inheritedFrom, @Nullable Runnable onDone) {
 		super(parent, session, title);
-		this.id = id;
+		this.id = mobs.isEmpty() ? "" : mobs.getFirst();
+		this.nbtEntities = mobs;
 		this.settings = settings;
 		this.singleMob = singleMob;
 		this.inheritedFrom = inheritedFrom;
@@ -61,9 +63,9 @@ public class MobDetailScreen extends CmsScreen {
 
 	/** Edits the settings a group gives to its members. */
 	public static MobDetailScreen forGroup(Screen parent, ClientSession session, CmsConfig.MobGroup group) {
-		String member = Mobs.all().stream().filter(type -> MobSettingsResolver.isMember(group, type)).findFirst().map(Mobs::id).orElse("");
+		List<String> members = Mobs.all().stream().filter(type -> MobSettingsResolver.isMember(group, type)).map(Mobs::id).toList();
 		return new MobDetailScreen(parent, session, Component.translatable("controlmobspawns.gui.group.title", MobSettingsResolver.groupName(group)),
-			member, group.settings, false, List::of, null);
+			members, group.settings, false, List::of, null);
 	}
 
 	/**
@@ -72,7 +74,7 @@ public class MobDetailScreen extends CmsScreen {
 	 */
 	public static MobDetailScreen forSelection(Screen parent, ClientSession session, List<String> ids, Runnable afterApply) {
 		CmsConfig.MobSettings scratch = new CmsConfig.MobSettings();
-		return new MobDetailScreen(parent, session, Component.translatable("controlmobspawns.gui.selection.title", ids.size()), ids.getFirst(),
+		return new MobDetailScreen(parent, session, Component.translatable("controlmobspawns.gui.selection.title", ids.size()), ids,
 			scratch, false, List::of, () -> {
 				for (String mob : ids) {
 					scratch.applyChangesTo(session.config.getOrCreateMob(mob));
@@ -118,70 +120,59 @@ public class MobDetailScreen extends CmsScreen {
 	@Override
 	protected List<RowList.Row> buildRows() {
 		List<RowList.Row> rows = new ArrayList<>();
+		Inheritance from = inheritance();
 		if (singleMob) {
-			inheritedRows(rows);
+			groupsRow(rows, from);
 		}
+		CmsConfig.MobSettings effective = from.effective();
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.spawn")));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.spawn_rate"))
+		rows.add(reset(RowList.row(Component.translatable("controlmobspawns.gui.spawn_rate"))
 			.info(Component.translatable("controlmobspawns.gui.spawn_rate.hint"))
 			.rest(value(Component.translatable("controlmobspawns.gui.percent", Widgets.formatNumber(settings.spawnRate)), settings.spawnRate != 100.0))
-			.hover(Widgets.positiveDoubleBox(settings.spawnRate, 60, Component.translatable("controlmobspawns.gui.spawn_rate"), value -> settings.spawnRate = value)));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.mob.global_ban"))
+			.badge(from.scalar(MobSettingsResolver.SPAWN_RATE, settings.spawnRate != 100.0,
+				Component.translatable("controlmobspawns.gui.percent", Widgets.formatNumber(effective.spawnRate))))
+			.hover(Widgets.positiveDoubleBox(settings.spawnRate, 60, Component.translatable("controlmobspawns.gui.spawn_rate"), value -> settings.spawnRate = value)),
+			settings.spawnRate != 100.0, () -> settings.spawnRate = 100.0));
+		rows.add(reset(RowList.row(Component.translatable("controlmobspawns.gui.mob.global_ban"))
 			.rest(banState(settings.banned))
+			.badge(from.scalar(MobSettingsResolver.BANNED, settings.banned, banState(effective.banned)))
 			.hover(Widgets.toggle(!settings.banned, 80, Component.translatable("controlmobspawns.gui.allowed"), Component.translatable("controlmobspawns.gui.banned"),
 				allowed -> {
 					settings.banned = !allowed;
 					refresh();
-				})));
-		rows.add(listRow(Component.translatable("controlmobspawns.gui.mob.banned_dimensions"), null, settings.bannedDimensions.size(),
-			() -> new IdListScreen(this, session, Component.translatable("controlmobspawns.gui.mob.banned_dimensions"), settings.bannedDimensions, session.dimensions)));
+				})), settings.banned, () -> settings.banned = false));
+		rows.add(reset(listRow(Component.translatable("controlmobspawns.gui.mob.banned_dimensions"), null, settings.bannedDimensions.size(),
+			() -> new IdListScreen(this, session, Component.translatable("controlmobspawns.gui.mob.banned_dimensions"), settings.bannedDimensions, session.dimensions))
+			.badge(from.list(MobSettingsResolver.BANNED_DIMENSIONS)),
+			!settings.bannedDimensions.isEmpty(), settings.bannedDimensions::clear));
 		List<String> biomeChoices = Stream.concat(session.biomes.stream(), session.biomeTags.stream().map(tag -> "#" + tag)).toList();
-		rows.add(listRow(Component.translatable("controlmobspawns.gui.mob.banned_biomes"), Component.translatable("controlmobspawns.gui.ids.hint"),
+		rows.add(reset(listRow(Component.translatable("controlmobspawns.gui.mob.banned_biomes"), Component.translatable("controlmobspawns.gui.ids.hint"),
 			settings.bannedBiomes.size(),
-			() -> new IdListScreen(this, session, Component.translatable("controlmobspawns.gui.mob.banned_biomes"), settings.bannedBiomes, biomeChoices)));
-
-		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.reasons")));
-		for (EntitySpawnReason reason : REASONS) {
-			String name = reason.name();
-			boolean enabled = !settings.disabledReasons.contains(name);
-			rows.add(RowList.row(reasonName(reason))
-				.info(Component.translatable("controlmobspawns.reason." + name.toLowerCase(Locale.ROOT) + ".hint"))
-				.rest(enabled
-					? Component.translatable("controlmobspawns.gui.enabled").withStyle(ChatFormatting.GRAY)
-					: Component.translatable("controlmobspawns.gui.disabled").withStyle(ChatFormatting.RED))
-				.hover(Widgets.toggle(enabled, 80, Component.translatable("controlmobspawns.gui.enabled"), Component.translatable("controlmobspawns.gui.disabled"),
-					value -> {
-						settings.disabledReasons.remove(name);
-						if (!value) {
-							settings.disabledReasons.add(name);
-						}
-						refresh();
-					})));
-		}
-
-		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.nbt")));
-		rows.add(listRow(Component.translatable("controlmobspawns.gui.nbt_bans.title"), Component.translatable("controlmobspawns.gui.nbt_bans.hint"),
-			settings.nbtBans.size(), () -> new NbtBansScreen(this, session, id, settings)));
-		rows.add(listRow(Component.translatable("controlmobspawns.gui.nbt_proportions.title"), Component.translatable("controlmobspawns.gui.nbt_proportions.hint"),
-			settings.nbtProportions.size(), () -> new NbtProportionsScreen(this, session, id, settings)));
+			() -> new IdListScreen(this, session, Component.translatable("controlmobspawns.gui.mob.banned_biomes"), settings.bannedBiomes, biomeChoices))
+			.badge(from.list(MobSettingsResolver.BANNED_BIOMES)),
+			!settings.bannedBiomes.isEmpty(), settings.bannedBiomes::clear));
 
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.rules")));
-		boolean ruleActive = settings.spawnRule != null && settings.spawnRule.enabled;
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.rule.title"))
+		boolean ruleActive = effective.spawnRule != null && effective.spawnRule.enabled;
+		boolean ownRule = settings.spawnRule != null && settings.spawnRule.enabled;
+		rows.add(reset(RowList.row(Component.translatable("controlmobspawns.gui.rule.title"))
 			.info(Component.translatable("controlmobspawns.gui.rule.hint"))
-			.rest(value(Component.translatable(ruleActive ? "controlmobspawns.gui.rule.active" : "controlmobspawns.gui.rule.none"), ruleActive))
+			.rest(value(Component.translatable(ownRule ? "controlmobspawns.gui.rule.active" : "controlmobspawns.gui.rule.none"), ownRule))
+			.badge(from.scalar(MobSettingsResolver.SPAWN_RULE, ownRule, Component.translatable(ruleActive ? "controlmobspawns.gui.rule.active" : "controlmobspawns.gui.rule.none")))
 			.hover(Widgets.button(Component.translatable("controlmobspawns.gui.edit"), 80,
-				button -> minecraft.gui.setScreen(new SpawnRuleScreen(this, session, settings)))));
+				button -> minecraft.gui.setScreen(new SpawnRuleScreen(this, session, settings)))),
+			settings.spawnRule != null, () -> settings.spawnRule = null));
 
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.despawn")));
-		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.despawn_mode"))
+		rows.add(reset(RowList.row(Component.translatable("controlmobspawns.gui.despawn_mode"))
 			.info(Component.translatable("controlmobspawns.gui.despawn_mode.hint"))
 			.rest(value(despawnModeName(settings.despawn), settings.despawn != CmsConfig.DespawnMode.DEFAULT))
+			.badge(from.scalar(MobSettingsResolver.DESPAWN, settings.despawn != CmsConfig.DespawnMode.DEFAULT, despawnModeName(effective.despawn)))
 			.hover(Widgets.cycle(List.of(CmsConfig.DespawnMode.values()), settings.despawn, 100, MobDetailScreen::despawnModeName,
 				mode -> {
 					settings.despawn = mode;
 					refresh();
-				})));
+				})), settings.despawn != CmsConfig.DespawnMode.DEFAULT, () -> settings.despawn = CmsConfig.DespawnMode.DEFAULT));
 
 		if (session.remote && singleMob) {
 			rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.despawn_now"))
@@ -194,76 +185,112 @@ public class MobDetailScreen extends CmsScreen {
 				counts.forEach((dimension, count) -> rows.add(despawnRow(Component.literal(dimension), dimension, count)));
 			}
 		}
+
+		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.nbt")));
+		rows.add(reset(listRow(Component.translatable("controlmobspawns.gui.nbt_bans.title"), Component.translatable("controlmobspawns.gui.nbt_bans.hint"),
+			settings.nbtBans.size(), () -> new NbtBansScreen(this, session, nbtEntities, settings))
+			.badge(from.list(MobSettingsResolver.NBT_BANS)),
+			!settings.nbtBans.isEmpty(), settings.nbtBans::clear));
+		rows.add(reset(listRow(Component.translatable("controlmobspawns.gui.nbt_proportions.title"), Component.translatable("controlmobspawns.gui.nbt_proportions.hint"),
+			settings.nbtProportions.size(), () -> new NbtProportionsScreen(this, session, nbtEntities, settings))
+			.badge(from.list(MobSettingsResolver.NBT_PROPORTIONS)),
+			!settings.nbtProportions.isEmpty(), settings.nbtProportions::clear));
+
+		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.mob.reasons")));
+		for (EntitySpawnReason reason : REASONS) {
+			String name = reason.name();
+			boolean enabled = !settings.disabledReasons.contains(name);
+			rows.add(reset(RowList.row(reasonName(reason))
+				.info(Component.translatable("controlmobspawns.reason." + name.toLowerCase(Locale.ROOT) + ".hint"))
+				.rest(enabled
+					? Component.translatable("controlmobspawns.gui.enabled").withStyle(ChatFormatting.GRAY)
+					: Component.translatable("controlmobspawns.gui.disabled").withStyle(ChatFormatting.RED))
+				.badge(enabled ? from.entry(MobSettingsResolver.key(MobSettingsResolver.DISABLED_REASONS, name),
+					Component.translatable("controlmobspawns.gui.disabled")) : null)
+				.hover(Widgets.toggle(enabled, 80, Component.translatable("controlmobspawns.gui.enabled"), Component.translatable("controlmobspawns.gui.disabled"),
+					value -> {
+						settings.disabledReasons.remove(name);
+						if (!value) {
+							settings.disabledReasons.add(name);
+						}
+						refresh();
+					})), !enabled, () -> settings.disabledReasons.remove(name)));
+		}
 		return rows;
 	}
 
 	/**
-	 * What the mob's groups and tags give it, each with a switch to put it back to vanilla for this
-	 * mob. Forced values that are no longer inherited can be removed.
+	 * What the mob's groups give it: the values that apply and, for each setting, the groups it
+	 * comes from. Groups give nothing to a group, a selection or a mob that ignores them.
 	 */
-	private void inheritedRows(List<RowList.Row> rows) {
-		List<MobSettingsResolver.Inherited> inherited = MobSettingsResolver.inherited(inheritedFrom.get());
-		List<String> stale = settings.forceVanilla.stream().filter(key -> inherited.stream().noneMatch(entry -> entry.key().equals(key))).toList();
-		if (inherited.isEmpty() && stale.isEmpty()) {
+	private Inheritance inheritance() {
+		List<MobSettingsResolver.Source> groups = singleMob && !settings.ignoreGroups ? inheritedFrom.get() : List.of();
+		if (groups.isEmpty()) {
+			return new Inheritance(settings, List.of());
+		}
+		List<MobSettingsResolver.Source> levels = new ArrayList<>();
+		levels.add(new MobSettingsResolver.Source("", settings));
+		levels.addAll(groups);
+		return new Inheritance(MobSettingsResolver.merge(levels), MobSettingsResolver.inherited(groups));
+	}
+
+	private record Inheritance(CmsConfig.MobSettings effective, List<MobSettingsResolver.Inherited> inherited) {
+		/**
+		 * "300 % - Undead": the value that applies and the groups giving it, unless the mob sets
+		 * it itself, since its own value wins.
+		 */
+		@Nullable Component scalar(String key, boolean ownChanged, Component applied) {
+			return ownChanged ? null : withValue(applied, names(entry -> entry.key().equals(key)));
+		}
+
+		/** The groups adding entries to a list; they add up with the mob's own entries. */
+		@Nullable Component list(String kind) {
+			return names(entry -> entry.key().startsWith(kind + ":"));
+		}
+
+		@Nullable Component entry(String key, Component applied) {
+			return withValue(applied, names(entry -> entry.key().equals(key)));
+		}
+
+		private static @Nullable Component withValue(Component applied, @Nullable Component names) {
+			return names == null ? null : Component.empty().append(applied.copy().withStyle(ChatFormatting.YELLOW))
+				.append(Component.literal(" - ").withStyle(ChatFormatting.GRAY)).append(names);
+		}
+
+		/** "Undead, Raiders" in aqua, or null when no group gives the value. */
+		private @Nullable Component names(java.util.function.Predicate<MobSettingsResolver.Inherited> filter) {
+			List<String> sources = inherited.stream().filter(filter).map(MobSettingsResolver.Inherited::source).distinct().toList();
+			if (sources.isEmpty()) {
+				return null;
+			}
+			return Component.literal(String.join(", ", sources)).withStyle(ChatFormatting.AQUA);
+		}
+	}
+
+	/** The switch to ignore the mob's groups: then every setting of the mob applies, vanilla ones included. */
+	private void groupsRow(List<RowList.Row> rows, Inheritance from) {
+		if (inheritedFrom.get().isEmpty() && !settings.ignoreGroups) {
 			return;
 		}
 		rows.add(RowList.header(Component.translatable("controlmobspawns.gui.inherited")).info(Component.translatable("controlmobspawns.gui.inherited.hint")));
-		for (MobSettingsResolver.Inherited entry : inherited) {
-			boolean forced = settings.forceVanilla.contains(entry.key());
-			Component label = Component.translatable("controlmobspawns.gui.inherited.entry", describe(entry.key(), entry.value()),
-				Component.literal(entry.source()).withStyle(ChatFormatting.AQUA));
-			rows.add(RowList.row(forced ? label.copy().withStyle(ChatFormatting.GRAY, ChatFormatting.STRIKETHROUGH) : label)
-				.hover(Widgets.toggle(!forced, 80, Component.translatable("controlmobspawns.gui.inherited.applied"),
-					Component.translatable("controlmobspawns.gui.inherited.vanilla"), applied -> {
-						settings.forceVanilla.remove(entry.key());
-						if (!applied) {
-							settings.forceVanilla.add(entry.key());
-						}
-						refresh();
-					})));
-		}
-		for (String key : stale) {
-			int colon = key.indexOf(':');
-			rows.add(RowList.row(Component.translatable("controlmobspawns.gui.inherited.stale", describe(key, colon < 0 ? "" : key.substring(colon + 1)))
-					.withStyle(ChatFormatting.GRAY))
-				.hover(Widgets.button(Component.literal("✕").withStyle(ChatFormatting.RED), 20, Component.translatable("controlmobspawns.gui.remove"), button -> {
-					settings.forceVanilla.remove(key);
+		rows.add(RowList.row(Component.translatable("controlmobspawns.gui.inherited.ignore"))
+			.info(Component.translatable("controlmobspawns.gui.inherited.ignore.hint"))
+			.add(Widgets.toggle(!settings.ignoreGroups, 80, Component.translatable("controlmobspawns.gui.inherited.applied"),
+				Component.translatable("controlmobspawns.gui.inherited.ignored"), applied -> {
+					settings.ignoreGroups = !applied;
 					refresh();
 				})));
-		}
 	}
 
-	/** "Banned biomes: #minecraft:is_ocean", from a force-vanilla key and its value. */
-	private static Component describe(String key, String value) {
-		int colon = key.indexOf(':');
-		String kind = colon < 0 ? key : key.substring(0, colon);
-		Component name = Component.translatable(switch (kind) {
-			case MobSettingsResolver.SPAWN_RATE -> "controlmobspawns.gui.spawn_rate";
-			case MobSettingsResolver.BANNED -> "controlmobspawns.gui.mob.global_ban";
-			case MobSettingsResolver.DESPAWN -> "controlmobspawns.gui.despawn_mode";
-			case MobSettingsResolver.SPAWN_RULE -> "controlmobspawns.gui.rule.title";
-			case MobSettingsResolver.BANNED_DIMENSIONS -> "controlmobspawns.gui.mob.banned_dimensions";
-			case MobSettingsResolver.BANNED_BIOMES -> "controlmobspawns.gui.mob.banned_biomes";
-			case MobSettingsResolver.DISABLED_REASONS -> "controlmobspawns.gui.mob.reasons";
-			case MobSettingsResolver.NBT_BANS -> "controlmobspawns.gui.nbt_bans.title";
-			case MobSettingsResolver.NBT_PROPORTIONS -> "controlmobspawns.gui.nbt_proportions.title";
-			default -> kind;
-		});
-		Component shown = switch (kind) {
-			case MobSettingsResolver.BANNED, MobSettingsResolver.SPAWN_RULE -> null;
-			case MobSettingsResolver.DESPAWN -> enumValue(CmsConfig.DespawnMode.class, value).map(MobDetailScreen::despawnModeName).orElse(Component.literal(value));
-			case MobSettingsResolver.DISABLED_REASONS -> enumValue(EntitySpawnReason.class, value).map(MobDetailScreen::reasonName).orElse(Component.literal(value));
-			default -> value.isEmpty() ? null : Component.literal(value);
-		};
-		return shown == null ? name : Component.translatable("controlmobspawns.gui.inherited.value", name, shown);
-	}
-
-	private static <E extends Enum<E>> Optional<E> enumValue(Class<E> type, String name) {
-		try {
-			return Optional.of(Enum.valueOf(type, name));
-		} catch (IllegalArgumentException e) {
-			return Optional.empty();
+	/** Adds the reset button putting a value back to vanilla, while it is changed; the rest of the row does not move. */
+	private RowList.Row reset(RowList.Row row, boolean modified, Runnable toVanilla) {
+		if (modified) {
+			row.fixed(Widgets.resetButton(Component.translatable("controlmobspawns.gui.reset_vanilla"), () -> {
+				toVanilla.run();
+				refresh();
+			}));
 		}
+		return row;
 	}
 
 	/** A row opening a list editor; the button shows the number of entries. */

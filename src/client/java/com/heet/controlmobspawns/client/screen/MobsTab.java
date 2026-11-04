@@ -101,6 +101,13 @@ class MobsTab implements MainConfigScreen.Tab {
 				screen.reinit();
 			}));
 		}
+		if (existing != null && !existing.isDefault()) {
+			// Every own setting goes; what the mob's groups give it stays.
+			row.fixed(Widgets.resetButton(Component.translatable("controlmobspawns.gui.mobs.reset"), () -> {
+				config.mobs.remove(id);
+				screen.refresh();
+			}));
+		}
 		return row
 			.hover(Widgets.positiveDoubleBox(rate, 45, Component.translatable("controlmobspawns.gui.spawn_rate"),
 				value -> config.getOrCreateMob(id).spawnRate = value))

@@ -33,9 +33,13 @@ public final class CmsPayloads {
 		}
 	}
 
-	/** Server sends the global and effective configuration plus the ids the screens offer. */
+	/**
+	 * Server sends the global and effective configuration plus the ids the screens offer, and the
+	 * lowest and highest block heights over every dimension.
+	 */
 	public record Sync(
-		String globalJson, String effectiveJson, boolean canEdit, List<String> dimensions, List<String> biomes, List<String> biomeTags
+		String globalJson, String effectiveJson, boolean canEdit, List<String> dimensions, List<String> biomes, List<String> biomeTags,
+		int minY, int maxY
 	) implements CustomPacketPayload {
 		public static final Type<Sync> TYPE = payloadType("sync");
 		public static final StreamCodec<RegistryFriendlyByteBuf, Sync> CODEC = StreamCodec.composite(
@@ -45,6 +49,8 @@ public final class CmsPayloads {
 			STRING_LIST, Sync::dimensions,
 			STRING_LIST, Sync::biomes,
 			STRING_LIST, Sync::biomeTags,
+			ByteBufCodecs.VAR_INT, Sync::minY,
+			ByteBufCodecs.VAR_INT, Sync::maxY,
 			Sync::new
 		);
 

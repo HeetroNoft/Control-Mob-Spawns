@@ -58,7 +58,7 @@ public final class RuntimeConfig {
 				}
 			}
 		}
-		hasMobSettings = !raw.mobs.isEmpty() || !raw.groups.isEmpty() || !raw.tagGroups.isEmpty();
+		hasMobSettings = !raw.mobs.isEmpty() || !raw.groups.isEmpty();
 		for (CmsConfig.BiomeSpawn spawn : raw.biomeSpawns) {
 			EntityType<?> type = entityType(spawn.entity);
 			if (type != null && type.getCategory() != MobCategory.MISC && spawn.weight > 0) {

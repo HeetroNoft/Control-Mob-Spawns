@@ -175,6 +175,10 @@ public final class SpawnControl {
 		CompoundTag tag = save(entity);
 		boolean changed = false;
 		for (RuntimeConfig.ProportionGroup group : mob.proportions) {
+			// A group or tag can give a path that only some of its mobs have: the others are left alone.
+			if (group.path().countMatching(tag) == 0) {
+				continue;
+			}
 			Tag chosen = pick(group.entries(), random.nextDouble() * 100.0);
 			if (chosen == null && group.entries().size() == 1 && isBoolean(group.entries().getFirst().value())) {
 				chosen = ByteTag.valueOf(((ByteTag) group.entries().getFirst().value()).value() == 0);

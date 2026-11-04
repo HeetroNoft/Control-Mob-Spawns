@@ -16,12 +16,13 @@ import org.jspecify.annotations.Nullable;
 
 /** Forces the share of spawned mobs that get each NBT value. */
 public class NbtProportionsScreen extends CmsScreen {
-	private final String entity;
+	/** The mobs whose NBT paths are suggested: one mob, or every member of a group. */
+	private final List<String> entities;
 	private final CmsConfig.MobSettings settings;
 
-	public NbtProportionsScreen(Screen parent, ClientSession session, String entity, CmsConfig.MobSettings settings) {
+	public NbtProportionsScreen(Screen parent, ClientSession session, List<String> entities, CmsConfig.MobSettings settings) {
 		super(parent, session, Component.translatable("controlmobspawns.gui.nbt_proportions.title"));
-		this.entity = entity;
+		this.entities = entities;
 		this.settings = settings;
 	}
 
@@ -34,7 +35,7 @@ public class NbtProportionsScreen extends CmsScreen {
 	@Override
 	public void added() {
 		super.added();
-		NbtSuggestions.request(entity);
+		NbtSuggestions.request(entities);
 	}
 
 	@Override
@@ -57,14 +58,14 @@ public class NbtProportionsScreen extends CmsScreen {
 			EditBox percent = Widgets.percentBox(proportion.percent, 45, Component.translatable("controlmobspawns.gui.nbt.percent"), value -> proportion.percent = value);
 			percent.setHint(Component.literal("%").withStyle(ChatFormatting.DARK_GRAY));
 			rows.add(RowList.row(Component.empty())
-				.add(NbtValidation.pathBox(this, entity, proportion.path, 130, value -> proportion.path = value))
-				.hover(NbtValidation.pickerButton(this, session, entity, (path, value) -> {
+				.add(NbtValidation.pathBox(this, entities, proportion.path, 130, value -> proportion.path = value))
+				.hover(NbtValidation.pickerButton(this, session, entities, (path, value) -> {
 					proportion.path = path;
 					if (value != null) {
 						proportion.value = value;
 					}
 				}))
-				.add(NbtValidation.valueBox(this, entity, proportion.value, 90, () -> proportion.path, value -> proportion.value = value))
+				.add(NbtValidation.valueBox(this, entities, proportion.value, 90, () -> proportion.path, value -> proportion.value = value))
 				.add(percent)
 				.hover(Widgets.button(Component.literal("✕").withStyle(ChatFormatting.RED), 20, Component.translatable("controlmobspawns.gui.remove"), button -> {
 					settings.nbtProportions.remove(proportion);

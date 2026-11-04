@@ -20,8 +20,6 @@ public class CmsConfig {
 	public List<BiomeSpawn> biomeSpawns = new ArrayList<>();
 	/** Named groups of mobs sharing settings, highest priority first. A mob's own settings come before them. */
 	public List<MobGroup> groups = new ArrayList<>();
-	/** Settings for entity tags and mob categories, highest priority first. They come after the groups. */
-	public List<MobGroup> tagGroups = new ArrayList<>();
 
 	public static class Coverage {
 		public boolean moddedMobs = true;
@@ -59,10 +57,10 @@ public class CmsConfig {
 		public SpawnRule spawnRule;
 		public DespawnMode despawn = DespawnMode.DEFAULT;
 		/**
-		 * Settings inherited from groups and tags that are put back to vanilla here, as keys from
-		 * {@link MobSettingsResolver}: "spawnRate", or "bannedBiomes:#minecraft:is_ocean" for one entry.
+		 * On a mob: every setting of the mob applies, vanilla ones included, and its groups are
+		 * ignored. When off, only the settings the mob changes win over its groups.
 		 */
-		public List<String> forceVanilla = new ArrayList<>();
+		public boolean ignoreGroups = false;
 
 		public boolean isDefault() {
 			return spawnRate == 100.0 && !banned && !hasDetailedSettings();
@@ -72,7 +70,7 @@ public class CmsConfig {
 		public boolean hasDetailedSettings() {
 			return !bannedDimensions.isEmpty() || !bannedBiomes.isEmpty() || !disabledReasons.isEmpty()
 				|| !nbtBans.isEmpty() || !nbtProportions.isEmpty() || spawnRule != null || despawn != DespawnMode.DEFAULT
-				|| !forceVanilla.isEmpty();
+				|| ignoreGroups;
 		}
 
 		public MobSettings copy() {
@@ -91,7 +89,7 @@ public class CmsConfig {
 			nbtProportions = copy.nbtProportions;
 			spawnRule = copy.spawnRule;
 			despawn = copy.despawn;
-			forceVanilla = copy.forceVanilla;
+			ignoreGroups = copy.ignoreGroups;
 		}
 
 		/**
@@ -116,7 +114,9 @@ public class CmsConfig {
 			addMissing(copy.bannedDimensions, target.bannedDimensions);
 			addMissing(copy.bannedBiomes, target.bannedBiomes);
 			addMissing(copy.disabledReasons, target.disabledReasons);
-			addMissing(copy.forceVanilla, target.forceVanilla);
+			if (copy.ignoreGroups) {
+				target.ignoreGroups = true;
+			}
 			target.nbtBans.addAll(copy.nbtBans);
 			List<String> paths = copy.nbtProportions.stream().map(proportion -> proportion.path).toList();
 			target.nbtProportions.removeIf(existing -> paths.contains(existing.path));
@@ -136,7 +136,8 @@ public class CmsConfig {
 		public String name = "";
 		/**
 		 * Entity ids, entity tags prefixed with '#' and mob categories prefixed with '@' (for
-		 * example "@monster").
+		 * example "@monster"). An entry prefixed with '!' excludes what it matches: "@monster" and
+		 * "!minecraft:zombie" are every monster but zombies.
 		 */
 		public List<String> members = new ArrayList<>();
 		public MobSettings settings = new MobSettings();
