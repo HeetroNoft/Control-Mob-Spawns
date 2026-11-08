@@ -84,6 +84,11 @@ public final class ConfigManager {
 		rebuild();
 	}
 
+	/** Group membership by entity tag is cached: /reload can change the tags. */
+	public static void onTagsReloaded() {
+		rebuild();
+	}
+
 	private static void rebuild() {
 		active = new RuntimeConfig(effectiveConfig());
 	}

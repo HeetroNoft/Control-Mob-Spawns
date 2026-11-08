@@ -65,10 +65,17 @@ public final class ServerHandlers {
 		var biomeRegistry = server.registryAccess().lookupOrThrow(Registries.BIOME);
 		List<String> biomes = biomeRegistry.listElementIds().map(key -> key.identifier().toString()).sorted().toList();
 		List<String> biomeTags = biomeRegistry.listTagIds().map(tag -> tag.location().toString()).sorted().toList();
+		// Read from the levels so that a mod or datapack changing the build height is followed.
+		int minY = Integer.MAX_VALUE;
+		int maxY = Integer.MIN_VALUE;
+		for (ServerLevel level : server.getAllLevels()) {
+			minY = Math.min(minY, level.getMinY());
+			maxY = Math.max(maxY, level.getMaxY());
+		}
 		ServerPlayNetworking.send(player, new CmsPayloads.Sync(
 			ConfigManager.toJsonString(ConfigManager.globalConfig()),
 			ConfigManager.toJsonString(ConfigManager.effectiveConfig()),
-			canEdit(player), dimensions, biomes, biomeTags));
+			canEdit(player), dimensions, biomes, biomeTags, minY, maxY));
 	}
 
 	private static void save(ServerPlayer player, CmsPayloads.Save payload) {

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -40,7 +41,11 @@ public abstract class CmsScreen extends Screen {
 	protected @Nullable EditBox searchBox;
 	private String search = "";
 
+	private static final int SUGGESTION_COLOR = 0xFFE0E0E0;
+	private static final int SELECTED_SUGGESTION_COLOR = 0xFFFFFF55;
+
 	private final Map<EditBox, Supplier<List<String>>> completions = new IdentityHashMap<>();
+	private final Map<EditBox, ToIntFunction<String>> completionColors = new IdentityHashMap<>();
 	private @Nullable EditBox suggestionBox;
 	private List<String> suggestions = List.of();
 	private int selectedSuggestion;
@@ -105,6 +110,12 @@ public abstract class CmsScreen extends Screen {
 	protected EditBox autocomplete(EditBox box, Supplier<List<String>> candidates) {
 		completions.put(box, candidates);
 		return box;
+	}
+
+	/** Like {@link #autocomplete(EditBox, Supplier)}, each suggestion drawn in the color {@code color} gives it. */
+	protected EditBox autocomplete(EditBox box, Supplier<List<String>> candidates, ToIntFunction<String> color) {
+		completionColors.put(box, color);
+		return autocomplete(box, candidates);
 	}
 
 	/** Switches tab: the header changes, so the widgets are rebuilt. */
@@ -211,6 +222,7 @@ public abstract class CmsScreen extends Screen {
 	public void refresh() {
 		if (list != null) {
 			completions.clear();
+			completionColors.clear();
 			list.setRows(buildRows());
 		}
 	}
@@ -249,7 +261,9 @@ public abstract class CmsScreen extends Screen {
 			if (selected) {
 				graphics.fill(popupX, y, popupX + popupWidth, y + SUGGESTION_HEIGHT, 0xFF303060);
 			}
-			graphics.text(font, suggestions.get(index), popupX + 3, y + 2, selected ? 0xFFFFFF55 : 0xFFE0E0E0);
+			ToIntFunction<String> color = completionColors.get(suggestionBox);
+			int normal = color == null ? SUGGESTION_COLOR : color.applyAsInt(suggestions.get(index));
+			graphics.text(font, suggestions.get(index), popupX + 3, y + 2, selected ? SELECTED_SUGGESTION_COLOR : normal);
 		}
 		if (suggestions.size() > visible) {
 			String more = "+" + (suggestions.size() - visible - firstVisibleSuggestion);

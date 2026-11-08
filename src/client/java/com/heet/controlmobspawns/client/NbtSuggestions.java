@@ -1,16 +1,23 @@
 package com.heet.controlmobspawns.client;
 
 import com.heet.controlmobspawns.network.CmsPayloads;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import org.jspecify.annotations.Nullable;
 
-/** NBT paths received from the server, per entity type, for the NBT editors' suggestions. */
+/**
+ * NBT paths received from the server, per entity type, for the NBT editors' suggestions. A group
+ * edits several mobs at once: its suggestions are the union of its members' paths.
+ */
 public final class NbtSuggestions {
 	private static final Map<String, List<CmsPayloads.NbtPathInfo>> CACHE = new HashMap<>();
 	private static final Set<String> REQUESTED = new HashSet<>();
@@ -31,21 +38,52 @@ public final class NbtSuggestions {
 		}
 	}
 
-	public static @Nullable List<CmsPayloads.NbtPathInfo> get(String entity) {
-		return CACHE.get(entity);
+	public static void request(List<String> entities) {
+		entities.forEach(NbtSuggestions::request);
 	}
 
-	public static List<String> paths(String entity) {
-		List<CmsPayloads.NbtPathInfo> paths = CACHE.get(entity);
-		return paths == null ? List.of() : paths.stream().map(CmsPayloads.NbtPathInfo::path).toList();
-	}
-
-	public static List<String> values(String entity, String path) {
-		List<CmsPayloads.NbtPathInfo> paths = CACHE.get(entity);
-		if (paths == null) {
-			return List.of();
+	/** A path of several mobs: the values seen on any of them and the mobs that have it. */
+	public record SharedPath(String path, List<String> values, List<String> entities) {
+		public int mobs() {
+			return entities.size();
 		}
-		return paths.stream().filter(info -> info.path().equals(path)).findFirst().map(CmsPayloads.NbtPathInfo::values).orElse(List.of());
+	}
+
+	/** How many of these mobs have their paths received. */
+	public static int loaded(List<String> entities) {
+		return (int) entities.stream().filter(CACHE::containsKey).count();
+	}
+
+	/**
+	 * The paths of every received mob among these, with their values merged: first the paths all
+	 * of them have, then those only some have, each part sorted.
+	 */
+	public static List<SharedPath> shared(List<String> entities) {
+		Map<String, Set<String>> values = new TreeMap<>();
+		Map<String, List<String>> owners = new HashMap<>();
+		for (String entity : entities) {
+			List<CmsPayloads.NbtPathInfo> paths = CACHE.get(entity);
+			if (paths == null) {
+				continue;
+			}
+			for (CmsPayloads.NbtPathInfo info : paths) {
+				values.computeIfAbsent(info.path(), key -> new LinkedHashSet<>()).addAll(info.values());
+				owners.computeIfAbsent(info.path(), key -> new ArrayList<>()).add(entity);
+			}
+		}
+		List<SharedPath> result = new ArrayList<>();
+		values.forEach((path, seen) -> result.add(new SharedPath(path, List.copyOf(seen), List.copyOf(owners.get(path)))));
+		int loaded = loaded(entities);
+		result.sort(Comparator.comparing(info -> info.mobs() < loaded));
+		return result;
+	}
+
+	public static List<String> paths(List<String> entities) {
+		return shared(entities).stream().map(SharedPath::path).toList();
+	}
+
+	public static List<String> values(List<String> entities, String path) {
+		return shared(entities).stream().filter(info -> info.path().equals(path)).findFirst().map(SharedPath::values).orElse(List.of());
 	}
 
 	static void accept(CmsPayloads.NbtPaths payload) {

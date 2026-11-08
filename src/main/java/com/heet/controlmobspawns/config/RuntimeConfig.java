@@ -6,12 +6,13 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.commands.arguments.NbtPathArgument;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -31,7 +32,9 @@ public final class RuntimeConfig {
 	public static final RuntimeConfig EMPTY = new RuntimeConfig(new CmsConfig());
 
 	public final CmsConfig raw;
-	public final Map<EntityType<?>, CompiledMob> mobs = new IdentityHashMap<>();
+	/** Resolved on first use: entity tags are not bound yet when the configuration is loaded. */
+	private final Map<EntityType<?>, Optional<CompiledMob>> mobs = new ConcurrentHashMap<>();
+	private final boolean hasMobSettings;
 	public final Map<MobCategory, Integer> caps = new EnumMap<>(MobCategory.class);
 	public final Map<MobCategory, Integer> instantDespawn = new EnumMap<>(MobCategory.class);
 	public final Map<MobCategory, Integer> randomDespawn = new EnumMap<>(MobCategory.class);
@@ -55,12 +58,7 @@ public final class RuntimeConfig {
 				}
 			}
 		}
-		raw.mobs.forEach((id, settings) -> {
-			EntityType<?> type = entityType(id);
-			if (type != null) {
-				mobs.put(type, new CompiledMob(id, settings));
-			}
-		});
+		hasMobSettings = !raw.mobs.isEmpty() || !raw.groups.isEmpty();
 		for (CmsConfig.BiomeSpawn spawn : raw.biomeSpawns) {
 			EntityType<?> type = entityType(spawn.entity);
 			if (type != null && type.getCategory() != MobCategory.MISC && spawn.weight > 0) {
@@ -75,10 +73,17 @@ public final class RuntimeConfig {
 		return raw.coverage.moddedMobs || BuiltInRegistries.ENTITY_TYPE.getKey(type).getNamespace().equals(Identifier.DEFAULT_NAMESPACE);
 	}
 
-	/** Settings for this entity type, or null when it is not configured or not covered. */
+	public boolean hasMobSettings() {
+		return hasMobSettings;
+	}
+
+	/** Settings for this entity type, its groups and tags included, or null when it is not configured or not covered. */
 	public @Nullable CompiledMob mob(EntityType<?> type) {
-		CompiledMob mob = mobs.get(type);
-		return mob != null && coversType(type) ? mob : null;
+		if (!hasMobSettings || !coversType(type)) {
+			return null;
+		}
+		return mobs.computeIfAbsent(type, key -> Optional.ofNullable(MobSettingsResolver.resolve(raw, key))
+			.map(settings -> new CompiledMob(BuiltInRegistries.ENTITY_TYPE.getKey(key).toString(), settings))).orElse(null);
 	}
 
 	public static @Nullable EntityType<?> entityType(String id) {

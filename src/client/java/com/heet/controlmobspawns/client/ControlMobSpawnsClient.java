@@ -26,6 +26,7 @@ public class ControlMobSpawnsClient implements ClientModInitializer {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(CmsPayloads.NbtPaths.TYPE, (payload, context) -> NbtSuggestions.accept(payload));
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> NbtSuggestions.clear());
+		WorldConfigKey.register();
 	}
 
 	public static void setSyncListener(@Nullable Consumer<CmsPayloads.Sync> listener) {

@@ -63,7 +63,7 @@ public final class SpawnControl {
 		MobCategory category, EntitySpawnReason reason
 	) {
 		RuntimeConfig config = ConfigManager.active();
-		if (config.mobs.isEmpty() && config.biomeSpawns.isEmpty()) {
+		if (!config.hasMobSettings() && config.biomeSpawns.isEmpty()) {
 			return list;
 		}
 		WeightedList.Builder<MobSpawnSettings.SpawnerData> builder = WeightedList.builder();
@@ -175,6 +175,10 @@ public final class SpawnControl {
 		CompoundTag tag = save(entity);
 		boolean changed = false;
 		for (RuntimeConfig.ProportionGroup group : mob.proportions) {
+			// A group or tag can give a path that only some of its mobs have: the others are left alone.
+			if (group.path().countMatching(tag) == 0) {
+				continue;
+			}
 			Tag chosen = pick(group.entries(), random.nextDouble() * 100.0);
 			if (chosen == null && group.entries().size() == 1 && isBoolean(group.entries().getFirst().value())) {
 				chosen = ByteTag.valueOf(((ByteTag) group.entries().getFirst().value()).value() == 0);
@@ -225,6 +229,11 @@ public final class SpawnControl {
 			entity.load(TagValueInput.create(reporter, entity.registryAccess(), tag));
 			entity.setUUID(uuid);
 		}
+	}
+
+	public static boolean hasSpawnRule(EntityType<?> type) {
+		RuntimeConfig.CompiledMob mob = ConfigManager.active().mob(type);
+		return mob != null && mob.spawnRule != null;
 	}
 
 	/** Returns the result of the configured spawn rule, or null to keep the vanilla check. */

@@ -3,6 +3,7 @@
 	"package": "com.heet.controlmobspawns.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
+		"BaseSpawnerMixin",
 		"EntityMixin",
 		"EntityTypeMixin",
 		"MobCategoryAccessor",

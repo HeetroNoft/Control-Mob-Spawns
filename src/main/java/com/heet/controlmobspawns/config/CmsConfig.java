@@ -18,6 +18,8 @@ public class CmsConfig {
 	/** Entity type id to its settings. */
 	public Map<String, MobSettings> mobs = new TreeMap<>();
 	public List<BiomeSpawn> biomeSpawns = new ArrayList<>();
+	/** Named groups of mobs sharing settings, highest priority first. A mob's own settings come before them. */
+	public List<MobGroup> groups = new ArrayList<>();
 
 	public static class Coverage {
 		public boolean moddedMobs = true;
@@ -54,6 +56,11 @@ public class CmsConfig {
 		public List<NbtProportion> nbtProportions = new ArrayList<>();
 		public SpawnRule spawnRule;
 		public DespawnMode despawn = DespawnMode.DEFAULT;
+		/**
+		 * On a mob: every setting of the mob applies, vanilla ones included, and its groups are
+		 * ignored. When off, only the settings the mob changes win over its groups.
+		 */
+		public boolean ignoreGroups = false;
 
 		public boolean isDefault() {
 			return spawnRate == 100.0 && !banned && !hasDetailedSettings();
@@ -62,8 +69,78 @@ public class CmsConfig {
 		/** Settings other than the spawn rate and the global ban, which are edited in the ⚙ sub-menu. */
 		public boolean hasDetailedSettings() {
 			return !bannedDimensions.isEmpty() || !bannedBiomes.isEmpty() || !disabledReasons.isEmpty()
-				|| !nbtBans.isEmpty() || !nbtProportions.isEmpty() || spawnRule != null || despawn != DespawnMode.DEFAULT;
+				|| !nbtBans.isEmpty() || !nbtProportions.isEmpty() || spawnRule != null || despawn != DespawnMode.DEFAULT
+				|| ignoreGroups;
 		}
+
+		public MobSettings copy() {
+			return ConfigManager.GSON.fromJson(ConfigManager.GSON.toJsonTree(this), MobSettings.class);
+		}
+
+		/** Replaces every value with a copy of {@code other}'s, for paste. */
+		public void setFrom(MobSettings other) {
+			MobSettings copy = other.copy();
+			spawnRate = copy.spawnRate;
+			banned = copy.banned;
+			bannedDimensions = copy.bannedDimensions;
+			bannedBiomes = copy.bannedBiomes;
+			disabledReasons = copy.disabledReasons;
+			nbtBans = copy.nbtBans;
+			nbtProportions = copy.nbtProportions;
+			spawnRule = copy.spawnRule;
+			despawn = copy.despawn;
+			ignoreGroups = copy.ignoreGroups;
+		}
+
+		/**
+		 * Writes what differs from vanilla here into {@code target}, for editing several mobs at
+		 * once: changed simple values replace the target's, list entries are added, and the
+		 * proportions of a path replace the target's for that path.
+		 */
+		public void applyChangesTo(MobSettings target) {
+			MobSettings copy = copy();
+			if (copy.spawnRate != 100.0) {
+				target.spawnRate = copy.spawnRate;
+			}
+			if (copy.banned) {
+				target.banned = true;
+			}
+			if (copy.despawn != null && copy.despawn != DespawnMode.DEFAULT) {
+				target.despawn = copy.despawn;
+			}
+			if (copy.spawnRule != null) {
+				target.spawnRule = copy.spawnRule;
+			}
+			addMissing(copy.bannedDimensions, target.bannedDimensions);
+			addMissing(copy.bannedBiomes, target.bannedBiomes);
+			addMissing(copy.disabledReasons, target.disabledReasons);
+			if (copy.ignoreGroups) {
+				target.ignoreGroups = true;
+			}
+			target.nbtBans.addAll(copy.nbtBans);
+			List<String> paths = copy.nbtProportions.stream().map(proportion -> proportion.path).toList();
+			target.nbtProportions.removeIf(existing -> paths.contains(existing.path));
+			target.nbtProportions.addAll(copy.nbtProportions);
+		}
+
+		private static void addMissing(List<String> from, List<String> to) {
+			for (String entry : from) {
+				if (!to.contains(entry)) {
+					to.add(entry);
+				}
+			}
+		}
+	}
+
+	public static class MobGroup {
+		public String name = "";
+		/**
+		 * Entity ids, entity tags prefixed with '#' and mob categories prefixed with '@' (for
+		 * example "@monster"). An entry prefixed with '!' excludes what it matches: "@monster" and
+		 * "!minecraft:zombie" are every monster but zombies.
+		 */
+		public List<String> members = new ArrayList<>();
+		public MobSettings settings = new MobSettings();
 	}
 
 	public static class NbtBan {

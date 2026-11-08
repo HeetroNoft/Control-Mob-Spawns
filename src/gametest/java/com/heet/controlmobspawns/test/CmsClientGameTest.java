@@ -5,8 +5,10 @@ import com.heet.controlmobspawns.client.ClientSession;
 import com.heet.controlmobspawns.client.ControlMobSpawnsClient;
 import com.heet.controlmobspawns.client.ModMenuIntegration;
 import com.heet.controlmobspawns.client.NbtSuggestions;
+import com.heet.controlmobspawns.client.WorldConfigKey;
 import com.heet.controlmobspawns.client.screen.HomeScreen;
 import com.heet.controlmobspawns.client.screen.MobDetailScreen;
+import com.heet.controlmobspawns.client.screen.GroupMembersScreen;
 import com.heet.controlmobspawns.client.screen.MainConfigScreen;
 import com.heet.controlmobspawns.client.screen.NbtBansScreen;
 import com.heet.controlmobspawns.client.screen.NbtPathPickerScreen;
@@ -69,6 +71,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 			nbtProportions(server);
 			spawnLists(server);
 			spawnRules(server);
+			groups(server);
 			despawn(server);
 			existingMobs(context, server);
 			networking(context, server);
@@ -89,7 +92,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.waitTicks(3);
 		context.takeScreenshot("cms-01b-general-reset-hover");
 		ClientSession session = context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).session());
-		check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).tabCount()) == 3, "no Current mobs tab from the title screen");
+		check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).tabCount()) == 4, "no Current mobs tab from the title screen");
 		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(1));
 		context.getInput().setCursorPos(500, 165);
 		context.waitTicks(3);
@@ -102,7 +105,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		baby.value = "1b";
 		baby.percent = 20;
 		zombie.nbtProportions.add(baby);
-		context.setScreen(() -> new NbtProportionsScreen(title, session, "minecraft:zombie", zombie));
+		context.setScreen(() -> new NbtProportionsScreen(title, session, List.of("minecraft:zombie"), zombie));
 		context.takeScreenshot("cms-04-nbt-proportions");
 		context.setScreen(() -> new SpawnRuleScreen(title, session, zombie));
 		context.takeScreenshot("cms-05-spawn-rule");
@@ -110,7 +113,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		session.config.biomeSpawns.getFirst().entity = "minecraft:blaze";
 		session.config.biomeSpawns.getFirst().biomes.add("minecraft:plains");
 		context.setScreen(() -> new MainConfigScreen(title, session));
-		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(2));
+		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(3));
 		context.waitTicks(2);
 		context.takeScreenshot("cms-06-biome-spawns-tab");
 		context.setScreen(() -> title);
@@ -238,6 +241,110 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				"night-only rule refuses at noon");
 		});
 		resetWorldConfig(server);
+		naturalSpawning(server);
+	}
+
+	/**
+	 * Runs vanilla's whole natural spawn loop, not only the placement predicate: the mob's own
+	 * checks (light for monsters) must not undo a spawn rule.
+	 */
+	private static void naturalSpawning(TestServerContext server) {
+		for (EntityType<?> type : List.of(EntityTypes.ZOMBIE, EntityTypes.WARDEN)) {
+			String id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(type).toString();
+			check(naturalSpawns(server, type) == 0, "vanilla: no natural " + id + " on the surface at noon");
+			setWorldConfig(server, config -> {
+				config.getOrCreateMob(id).spawnRule = new CmsConfig.SpawnRule();
+				CmsConfig.BiomeSpawn spawn = new CmsConfig.BiomeSpawn();
+				spawn.entity = id;
+				spawn.biomes.add("#minecraft:is_overworld");
+				spawn.weight = 100_000;
+				config.biomeSpawns.add(spawn);
+			});
+			int spawned = naturalSpawns(server, type);
+			check(spawned > 0, "empty rule + biome spawn: " + id + " spawns naturally at noon (" + spawned + ")");
+			resetWorldConfig(server);
+		}
+	}
+
+	/** Runs the natural monster spawn loop around the player and returns how many mobs of this type appeared. */
+	private static int naturalSpawns(TestServerContext server, EntityType<?> type) {
+		return server.computeOnServer(minecraftServer -> {
+			ServerLevel level = minecraftServer.overworld();
+			Player player = level.players().getFirst();
+			level.getEntities(type, entity -> true).forEach(entity -> entity.discard());
+			for (int angle = 0; angle < 360; angle += 10) {
+				double radians = Math.toRadians(angle);
+				BlockPos target = player.blockPosition().offset((int) (Math.cos(radians) * 48), 0, (int) (Math.sin(radians) * 48));
+				for (int attempt = 0; attempt < 10; attempt++) {
+					net.minecraft.world.level.NaturalSpawner.spawnCategoryForPosition(MobCategory.MONSTER, level, surface(level, target));
+				}
+			}
+			int found = level.getEntities(type, entity -> true).size();
+			// Also removes the chickens of chicken jockeys.
+			level.getEntities(net.minecraft.world.level.entity.EntityTypeTest.forClass(net.minecraft.world.entity.Mob.class), entity -> true)
+				.forEach(entity -> entity.discard());
+			return found;
+		});
+	}
+
+	/** Mob > groups > tags, merged lists and a mob ignoring its groups. */
+	private static void groups(TestServerContext server) {
+		setWorldConfig(server, config -> {
+			CmsConfig.MobGroup undead = new CmsConfig.MobGroup();
+			undead.members.add("#minecraft:undead");
+			undead.settings.spawnRate = 300;
+			undead.settings.bannedBiomes.add("#minecraft:is_ocean");
+			CmsConfig.NbtProportion baby = new CmsConfig.NbtProportion();
+			baby.path = "IsBaby";
+			baby.value = "1b";
+			baby.percent = 100;
+			undead.settings.nbtProportions.add(baby);
+			CmsConfig.MobGroup lowerTag = new CmsConfig.MobGroup();
+			lowerTag.members.add("#minecraft:skeletons");
+			lowerTag.settings.spawnRate = 20;
+			lowerTag.settings.bannedBiomes.add("minecraft:desert");
+			CmsConfig.MobGroup creatures = new CmsConfig.MobGroup();
+			creatures.members.add("@creature");
+			creatures.members.add("!minecraft:pig");
+			creatures.settings.banned = true;
+			CmsConfig.MobGroup monsters = new CmsConfig.MobGroup();
+			monsters.members.add("@monster");
+			monsters.members.add("!#minecraft:undead");
+			monsters.settings.spawnRate = 7;
+
+			CmsConfig.MobGroup zombies = new CmsConfig.MobGroup();
+			zombies.name = "Zombies";
+			zombies.members.add("minecraft:zombie");
+			zombies.settings.spawnRate = 50;
+			zombies.settings.despawn = CmsConfig.DespawnMode.NEVER;
+			config.groups.addAll(List.of(zombies, undead, lowerTag, creatures, monsters));
+
+			config.getOrCreateMob("minecraft:husk").spawnRate = 200;
+			config.getOrCreateMob("minecraft:drowned").ignoreGroups = true;
+		});
+		server.runOnServer(minecraftServer -> {
+			var active = ConfigManager.active();
+			var skeleton = active.mob(EntityTypes.SKELETON);
+			check(skeleton != null && skeleton.spawnRate == 300, "tag: undead skeletons get 300 %, the first tag wins over a later one");
+			check(skeleton.proportions.size() == 1, "tag: skeletons get the baby proportion");
+			check(skeleton.bannedBiomes.matches(minecraftServer.overworld().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BIOME)
+				.getOrThrow(net.minecraft.world.level.biome.Biomes.DESERT)), "tag lists merge: skeletons also banned in the desert");
+			var zombie = active.mob(EntityTypes.ZOMBIE);
+			check(zombie.spawnRate == 50 && zombie.despawn == CmsConfig.DespawnMode.NEVER, "group wins over tag");
+			check(zombie.proportions.size() == 1, "zombies still get the tag's proportion");
+			check(active.mob(EntityTypes.HUSK).spawnRate == 200, "mob wins over tag");
+			var drowned = active.mob(EntityTypes.DROWNED);
+			check(drowned.spawnRate == 100.0, "a mob ignoring its groups keeps its own vanilla spawn rate");
+			check(drowned.proportions.isEmpty(), "a mob ignoring its groups gets no inherited proportion");
+			check(!drowned.bannedBiomes.matches(minecraftServer.overworld().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BIOME)
+				.getOrThrow(net.minecraft.world.level.biome.Biomes.OCEAN)), "a mob ignoring its groups gets no inherited biome ban");
+			check(active.mob(EntityTypes.COW).banned, "category group: cows are creatures");
+			check(active.mob(EntityTypes.PIG) == null, "a mob excluded from its group gets nothing from it");
+			check(active.mob(EntityTypes.CREEPER) != null && active.mob(EntityTypes.CREEPER).spawnRate == 7, "@monster gives creepers its rate");
+			check(skeleton.spawnRate == 300, "a tag excluded from @monster: skeletons do not get its rate");
+			check(active.mob(EntityTypes.BAT) == null, "mobs outside every group stay vanilla");
+		});
+		resetWorldConfig(server);
 	}
 
 	private static void despawn(TestServerContext server) {
@@ -329,8 +436,8 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.takeScreenshot("cms-07-home-singleplayer");
 		context.clickScreenButton("controlmobspawns.gui.home.world");
 		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
-		check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).tabCount()) == 4, "the world screen has a Current mobs tab");
-		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(3));
+		check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).tabCount()) == 5, "the world screen has a Current mobs tab");
+		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(2));
 		context.waitTicks(10);
 		context.takeScreenshot("cms-08-current-mobs-tab");
 		context.getInput().setCursorPos(500, 210);
@@ -365,19 +472,94 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.waitTicks(3);
 		context.takeScreenshot("cms-11-mob-detail-despawn-now");
 		nbtSuggestions(context, session);
+		groupScreens(context, session);
 		context.setScreen(() -> null);
 	}
 
+	/** Inherited values, the Groups tab, selection mode, copy and paste. */
+	private static void groupScreens(ClientGameTestContext context, ClientSession session) {
+		CmsConfig.MobGroup undead = new CmsConfig.MobGroup();
+		undead.name = "Undead";
+		undead.members.add("#minecraft:undead");
+		undead.settings.spawnRate = 300;
+		undead.settings.bannedBiomes.add("#minecraft:is_ocean");
+		session.config.groups.add(undead);
+		context.setScreen(() -> new MobDetailScreen(null, session, EntityTypes.ZOMBIE));
+		context.waitTicks(3);
+		context.takeScreenshot("cms-17-mob-inherited");
+		context.runOnClient(minecraft -> {
+			session.config.mobs.get("minecraft:zombie").ignoreGroups = true;
+			((MobDetailScreen) minecraft.gui.screen()).refresh();
+		});
+		context.waitTicks(2);
+		context.takeScreenshot("cms-18-mob-inherited-forced");
+
+		context.setScreen(() -> new MainConfigScreen(null, session));
+		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(3));
+		context.waitTicks(2);
+		context.takeScreenshot("cms-19-groups-tab");
+		List<String> members = new java.util.ArrayList<>(List.of("@monster", "!minecraft:zombie", "minecraft:cow"));
+		context.setScreen(() -> new GroupMembersScreen(null, session, net.minecraft.network.chat.Component.literal("Members"), members));
+		context.waitTicks(2);
+		context.takeScreenshot("cms-19b-group-member-picker");
+		context.setScreen(() -> new MainConfigScreen(null, session));
+
+		context.runOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).showTab(1));
+		context.clickScreenButton("controlmobspawns.gui.selection.start");
+		context.getInput().typeChars("zombie");
+		context.waitTicks(2);
+		context.clickScreenButton("controlmobspawns.gui.selection.all");
+		context.waitTicks(2);
+		context.takeScreenshot("cms-20-mobs-selection");
+		context.clickScreenButton("controlmobspawns.gui.edit");
+		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MobDetailScreen);
+		context.takeScreenshot("cms-21-selection-edit");
+		context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
+		context.clickScreenButton("controlmobspawns.gui.selection.group");
+		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MobDetailScreen);
+		check(session.config.groups.size() == 2 && session.config.groups.getLast().members.contains("minecraft:zombie")
+			&& session.config.groups.getLast().members.contains("minecraft:zombie_villager"), "group created from the selection");
+
+		session.config.groups.getLast().settings.spawnRate = 42;
+		context.clickScreenButton("controlmobspawns.gui.copy");
+		context.runOnClient(minecraft -> MobDetailScreen.pasteInto(session.config.getOrCreateMob("minecraft:cow")));
+		check(session.config.mobs.get("minecraft:cow").spawnRate == 42, "paste copies the settings");
+
+		CmsConfig.MobSettings pig = session.config.getOrCreateMob("minecraft:pig");
+		pig.banned = true;
+		pig.spawnRate = 70;
+		CmsConfig.MobSettings bulk = new CmsConfig.MobSettings();
+		bulk.spawnRate = 250;
+		bulk.disabledReasons.add("NATURAL");
+		bulk.applyChangesTo(pig);
+		check(pig.spawnRate == 250 && pig.banned && pig.disabledReasons.contains("NATURAL"), "editing together only writes what changed");
+	}
+
 	private static void nbtSuggestions(ClientGameTestContext context, ClientSession session) {
-		String zombie = "minecraft:zombie";
+		String zombieId = "minecraft:zombie";
+		List<String> zombie = List.of(zombieId);
 		context.runOnClient(minecraft -> NbtSuggestions.request(zombie));
-		context.waitFor(minecraft -> NbtSuggestions.get(zombie) != null);
+		context.waitFor(minecraft -> NbtSuggestions.loaded(zombie) == 1);
 		List<String> babyValues = context.computeOnClient(minecraft -> NbtSuggestions.values(zombie, "IsBaby"));
 		int pathCount = context.computeOnClient(minecraft -> NbtSuggestions.paths(zombie).size());
 		ControlMobSpawns.LOGGER.info("[CMS-TEST] {} NBT paths for zombies, IsBaby values {}", pathCount, babyValues);
 		check(babyValues.contains("0b") && babyValues.contains("1b"), "IsBaby offered with 0b and 1b");
 
-		CmsConfig.MobSettings settings = session.config.getOrCreateMob(zombie);
+		List<String> group = List.of("minecraft:skeleton", zombieId);
+		context.runOnClient(minecraft -> NbtSuggestions.request(group));
+		context.waitFor(minecraft -> NbtSuggestions.loaded(group) == 2);
+		int babyMobs = context.computeOnClient(minecraft -> NbtSuggestions.shared(group).stream()
+			.filter(path -> path.path().equals("IsBaby")).findFirst().map(NbtSuggestions.SharedPath::mobs).orElse(0));
+		check(babyMobs == 1, "a group offers IsBaby from its zombie although its skeleton has none, got " + babyMobs);
+		context.setScreen(() -> new NbtPathPickerScreen(null, session, group, (path, value) -> { }));
+		context.waitTicks(2);
+		context.takeScreenshot("cms-14b-nbt-path-list-group");
+		context.setScreen(() -> new com.heet.controlmobspawns.client.screen.NbtPathMobsScreen(null, session, "IsBaby", List.of(zombieId), group));
+		context.waitTicks(2);
+		context.takeScreenshot("cms-14c-nbt-path-mobs");
+
+		CmsConfig.MobSettings settings = session.config.getOrCreateMob(zombieId);
 		CmsConfig.NbtBan ban = new CmsConfig.NbtBan();
 		settings.nbtBans.add(ban);
 		context.setScreen(() -> new NbtBansScreen(null, session, zombie, settings));
@@ -438,6 +620,15 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				connection.waitForServerboundPackets();
 				check(server.computeOnServer(minecraftServer -> ConfigManager.active().mob(EntityTypes.COW) == null), "non-op save rejected");
 
+				context.setScreen(() -> null);
+				context.runOnClient(minecraft -> {
+					WorldConfigKey.OPEN_WORLD_CONFIG.setKey(com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_K));
+					net.minecraft.client.KeyMapping.resetMapping();
+				});
+				context.getInput().pressKey(GLFW.GLFW_KEY_K);
+				context.waitTicks(20);
+				check(context.computeOnClient(minecraft -> minecraft.gui.screen() == null), "non-op: the key opens nothing");
+
 				String name = context.computeOnClient(minecraft -> connection.getClientPlayer().getName().getString());
 				server.runCommand("op " + name);
 				context.setScreen(() -> null);
@@ -445,6 +636,11 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				context.waitFor(minecraft -> minecraft.gui.screen() instanceof HomeScreen home && home.canEdit() != null);
 				check(context.computeOnClient(minecraft -> ((HomeScreen) minecraft.gui.screen()).canEdit()), "op can edit on a dedicated server");
 				context.takeScreenshot("cms-16-home-dedicated-op");
+				context.setScreen(() -> null);
+				context.getInput().pressKey(GLFW.GLFW_KEY_K);
+				context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
+				check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).session().scope == ClientSession.Scope.WORLD),
+					"op: the key opens the world configuration");
 				context.runOnClient(minecraft -> ClientPlayNetworking.send(new CmsPayloads.Save(true, deniedJson)));
 				server.waitFor(minecraftServer -> ConfigManager.active().mob(EntityTypes.COW) != null);
 				context.setScreen(() -> null);
