@@ -19,6 +19,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.random.Weighted;
+import net.minecraft.util.valueproviders.UniformInt;
 import net.minecraft.util.random.WeightedList;
 import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.entity.Entity;
@@ -83,10 +84,10 @@ public final class SpawnControl {
 			if (spawn.type().getCategory() != category || !spawn.biomes().matches(biome)) {
 				continue;
 			}
-			MobSpawnSettings.SpawnerData data = new MobSpawnSettings.SpawnerData(spawn.type(), spawn.minCount(), spawn.maxCount());
-			if (list.contains(data)) {
+			if (alreadyListed(list, spawn)) {
 				continue;
 			}
+			MobSpawnSettings.SpawnerData data = new MobSpawnSettings.SpawnerData(spawn.type(), UniformInt.of(spawn.minCount(), spawn.maxCount()));
 			RuntimeConfig.CompiledMob mob = config.mob(spawn.type());
 			if (mob != null && (mob.disabledReasons.contains(reason) || isBannedAt(mob, dimension, biome))) {
 				continue;
@@ -95,6 +96,16 @@ public final class SpawnControl {
 			changed = true;
 		}
 		return changed ? builder.build() : list;
+	}
+
+	/** Compares by range, since the biome may use another IntProvider than UniformInt for the same counts. */
+	private static boolean alreadyListed(WeightedList<MobSpawnSettings.SpawnerData> list, RuntimeConfig.CompiledBiomeSpawn spawn) {
+		for (MobSpawnSettings.SpawnerData data : list.unwrap().stream().map(Weighted::value).toList()) {
+			if (data.type() == spawn.type() && data.count().minInclusive() == spawn.minCount() && data.count().maxInclusive() == spawn.maxCount()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Weights are multiplied by 100 so that percentages below 100 keep their precision. */

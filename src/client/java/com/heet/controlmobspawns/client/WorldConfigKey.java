@@ -16,7 +16,7 @@ import net.minecraft.resources.Identifier;
 public final class WorldConfigKey {
 	private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(ControlMobSpawns.MOD_ID, "main"));
 	public static final KeyMapping OPEN_WORLD_CONFIG = new KeyMapping(
-		"key.controlmobspawns.open_world_config", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
+		"key.controlmobspawns.open_world_config", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
 
 	private WorldConfigKey() {
 	}

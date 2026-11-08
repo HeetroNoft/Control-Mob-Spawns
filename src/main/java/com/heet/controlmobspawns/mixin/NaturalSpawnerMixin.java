@@ -6,7 +6,6 @@ import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.random.WeightedList;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -21,7 +20,6 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.util.RandomSource;
-import org.jspecify.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
@@ -30,19 +28,19 @@ public abstract class NaturalSpawnerMixin {
 	@ModifyReturnValue(method = "mobsAt", at = @At("RETURN"))
 	private static WeightedList<MobSpawnSettings.SpawnerData> cms$adjustNaturalSpawns(
 		WeightedList<MobSpawnSettings.SpawnerData> original, ServerLevel level, StructureManager structureManager,
-		ChunkGenerator generator, MobCategory category, BlockPos pos, @Nullable Holder<Biome> biome
+		ChunkGenerator generator, MobCategory category, BlockPos pos
 	) {
-		return SpawnControl.adjustSpawnList(original, level.dimension(), biome != null ? biome : level.getBiome(pos), category, EntitySpawnReason.NATURAL);
+		return SpawnControl.adjustSpawnList(original, level.dimension(), level.getBiome(pos), category, EntitySpawnReason.NATURAL);
 	}
 
 	@ModifyExpressionValue(
 		method = "spawnMobsForChunkGeneration",
-		at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/biome/MobSpawnSettings;getMobs(Lnet/minecraft/world/entity/MobCategory;)Lnet/minecraft/util/random/WeightedList;")
+		at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/biome/MobSpawnSettings;getMobsToSpawn(Lnet/minecraft/world/entity/MobCategory;)Lnet/minecraft/util/random/WeightedList;")
 	)
 	private static WeightedList<MobSpawnSettings.SpawnerData> cms$adjustChunkGenerationSpawns(
-		WeightedList<MobSpawnSettings.SpawnerData> original, ServerLevelAccessor level, Holder<Biome> biome, ChunkPos chunkPos, RandomSource random
+		WeightedList<MobSpawnSettings.SpawnerData> original, ServerLevelAccessor level, BlockPos sourcePos, ChunkPos chunkPos, RandomSource random
 	) {
-		return SpawnControl.adjustSpawnList(original, level.getLevel().dimension(), biome, MobCategory.CREATURE, EntitySpawnReason.CHUNK_GENERATION);
+		return SpawnControl.adjustSpawnList(original, level.getLevel().dimension(), level.getBiome(sourcePos), MobCategory.CREATURE, EntitySpawnReason.CHUNK_GENERATION);
 	}
 
 	/** A configured spawn rule also replaces the mob's own check (light level for monsters). */

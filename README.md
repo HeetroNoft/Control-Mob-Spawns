@@ -1,6 +1,6 @@
 # Control Mob Spawns
 
-A Fabric mod for Minecraft 26.2 that lets you control mob spawning from an in-game menu: ban mobs, change spawn rates and mob caps, disable spawn types, force NBT values, write custom spawn rules, add mobs to biomes and tune despawning. You never have to edit a config file by hand or look up an id.
+A Fabric mod for Minecraft 26.3 that lets you control mob spawning from an in-game menu: ban mobs, change spawn rates and mob caps, disable spawn types, force NBT values, write custom spawn rules, add mobs to biomes and tune despawning. You never have to edit a config file by hand or look up an id.
 
 ![General tab](docs/screenshots/general.png)
 
@@ -29,15 +29,15 @@ A Fabric mod for Minecraft 26.2 that lets you control mob spawning from an in-ga
 
 | | Version |
 |---|---|
-| Minecraft | 26.2 |
+| Minecraft | 26.3 |
 | Fabric Loader | 0.20.1 or newer |
-| Fabric API | any version for 26.2 |
+| Fabric API | any version for 26.3 |
 | Java | 25 |
 | [Mod Menu](https://modrinth.com/mod/modmenu) | optional: adds the button that opens the menu |
 
 ## Installation
 
-1. Install [Fabric](https://fabricmc.net/use/) for Minecraft 26.2.
+1. Install [Fabric](https://fabricmc.net/use/) for Minecraft 26.3.
 2. Put `controlmobspawns-<version>.jar` and Fabric API in your `mods` folder. Add Mod Menu to get the config button.
 3. On a dedicated server, install the mod on the server. Players who want to edit the configuration in game also need it on their client. Players without the mod can still join.
 

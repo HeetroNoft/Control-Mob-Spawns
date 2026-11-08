@@ -22,6 +22,7 @@ import com.heet.controlmobspawns.network.CmsPayloads;
 import com.heet.controlmobspawns.spawn.ExistingMobCleaner;
 import com.heet.controlmobspawns.spawn.ItemPickupHolder;
 import com.heet.controlmobspawns.spawn.SpawnControl;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.function.Consumer;
@@ -43,6 +44,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.random.Weighted;
 import net.minecraft.util.random.WeightedList;
+import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
@@ -56,7 +58,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.levelgen.Heightmap;
-import org.lwjgl.glfw.GLFW;
 
 public class CmsClientGameTest implements FabricClientGameTest {
 	@Override
@@ -199,8 +200,9 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		});
 		server.runOnServer(minecraftServer -> {
 			ServerLevel level = minecraftServer.overworld();
-			Holder<Biome> biome = level.getBiome(level.getRespawnData().pos());
-			WeightedList<MobSpawnSettings.SpawnerData> original = biome.value().getMobSettings().getMobs(MobCategory.MONSTER);
+			BlockPos spawnPos = level.getRespawnData().pos();
+			Holder<Biome> biome = level.getBiome(spawnPos);
+			WeightedList<MobSpawnSettings.SpawnerData> original = level.environmentAttributes().getValue(EnvironmentAttributes.NATURAL_MOB_SPAWNS, spawnPos).getMobsToSpawn(MobCategory.MONSTER);
 			WeightedList<MobSpawnSettings.SpawnerData> adjusted = SpawnControl.adjustSpawnList(original, level.dimension(), biome, MobCategory.MONSTER, EntitySpawnReason.NATURAL);
 			int zombieBefore = weight(original, EntityTypes.ZOMBIE);
 			int skeletonBefore = weight(original, EntityTypes.SKELETON);
@@ -453,7 +455,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		check(!context.computeOnClient(minecraft -> worldSession.isDirty()), "saved through the Save button");
 		context.runOnClient(minecraft -> worldSession.config.getOrCreateMob("minecraft:cow").banned = false);
 		context.waitTicks(2);
-		context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+		context.getInput().pressKey(InputConstants.KEY_ESCAPE);
 		context.waitFor(minecraft -> minecraft.gui.screen() instanceof ConfirmScreen);
 		context.takeScreenshot("cms-10-unsaved-confirm");
 		context.clickScreenButton("controlmobspawns.gui.unsaved.discard");
@@ -514,7 +516,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.clickScreenButton("controlmobspawns.gui.edit");
 		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MobDetailScreen);
 		context.takeScreenshot("cms-21-selection-edit");
-		context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+		context.getInput().pressKey(InputConstants.KEY_ESCAPE);
 		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
 		context.clickScreenButton("controlmobspawns.gui.selection.group");
 		context.waitFor(minecraft -> minecraft.gui.screen() instanceof MobDetailScreen);
@@ -567,15 +569,15 @@ public class CmsClientGameTest implements FabricClientGameTest {
 		context.getInput().typeChars("IsBa");
 		context.waitTicks(2);
 		context.takeScreenshot("cms-12-nbt-path-autocomplete");
-		context.getInput().pressKey(GLFW.GLFW_KEY_TAB);
+		context.getInput().pressKey(InputConstants.KEY_TAB);
 		context.waitTicks(2);
 		check(ban.path.equals("IsBaby"), "Tab completes the NBT path, got " + ban.path);
 
 		context.runOnClient(minecraft -> focusEditBox(minecraft.gui.screen(), 1));
 		context.waitTicks(2);
 		context.takeScreenshot("cms-13-nbt-value-suggestions");
-		context.getInput().pressKey(GLFW.GLFW_KEY_DOWN);
-		context.getInput().pressKey(GLFW.GLFW_KEY_ENTER);
+		context.getInput().pressKey(InputConstants.KEY_DOWN);
+		context.getInput().pressKey(InputConstants.KEY_RETURN);
 		context.waitTicks(2);
 		check(babyValues.contains(ban.value), "Enter picks a suggested value, got " + ban.value);
 
@@ -622,10 +624,10 @@ public class CmsClientGameTest implements FabricClientGameTest {
 
 				context.setScreen(() -> null);
 				context.runOnClient(minecraft -> {
-					WorldConfigKey.OPEN_WORLD_CONFIG.setKey(com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_K));
+					WorldConfigKey.OPEN_WORLD_CONFIG.setKey(InputConstants.Type.KEYBOARD.getOrCreate(InputConstants.KEY_K));
 					net.minecraft.client.KeyMapping.resetMapping();
 				});
-				context.getInput().pressKey(GLFW.GLFW_KEY_K);
+				context.getInput().pressKey(InputConstants.KEY_K);
 				context.waitTicks(20);
 				check(context.computeOnClient(minecraft -> minecraft.gui.screen() == null), "non-op: the key opens nothing");
 
@@ -637,7 +639,7 @@ public class CmsClientGameTest implements FabricClientGameTest {
 				check(context.computeOnClient(minecraft -> ((HomeScreen) minecraft.gui.screen()).canEdit()), "op can edit on a dedicated server");
 				context.takeScreenshot("cms-16-home-dedicated-op");
 				context.setScreen(() -> null);
-				context.getInput().pressKey(GLFW.GLFW_KEY_K);
+				context.getInput().pressKey(InputConstants.KEY_K);
 				context.waitFor(minecraft -> minecraft.gui.screen() instanceof MainConfigScreen);
 				check(context.computeOnClient(minecraft -> ((MainConfigScreen) minecraft.gui.screen()).session().scope == ClientSession.Scope.WORLD),
 					"op: the key opens the world configuration");

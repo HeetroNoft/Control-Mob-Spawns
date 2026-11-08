@@ -1,6 +1,7 @@
 package com.heet.controlmobspawns.client.screen;
 
 import com.heet.controlmobspawns.client.ClientSession;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -24,7 +25,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Base screen: a title, an optional search box, a list of rows and a footer. Text boxes can be
@@ -332,19 +332,19 @@ public abstract class CmsScreen extends Screen {
 	public boolean keyPressed(KeyEvent event) {
 		if (suggestionBox != null && !suggestions.isEmpty()) {
 			switch (event.key()) {
-				case GLFW.GLFW_KEY_DOWN -> {
+				case InputConstants.KEY_DOWN -> {
 					moveSelection(1);
 					return true;
 				}
-				case GLFW.GLFW_KEY_UP -> {
+				case InputConstants.KEY_UP -> {
 					moveSelection(-1);
 					return true;
 				}
-				case GLFW.GLFW_KEY_TAB, GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> {
+				case InputConstants.KEY_TAB, InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> {
 					acceptSuggestion(selectedSuggestion);
 					return true;
 				}
-				case GLFW.GLFW_KEY_ESCAPE -> {
+				case InputConstants.KEY_ESCAPE -> {
 					dismissedFor = suggestionBox.getValue();
 					hideSuggestions();
 					return true;
